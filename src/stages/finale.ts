@@ -1,13 +1,70 @@
-import type { DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import type { CollaborationUserPresence, DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import { CHALLENGE_COUNT } from "../challenges";
+import { Point } from "../geometry";
 import { newId } from "../host";
+import { lookUpSelf } from "../player";
+import { looksSignedUp } from "../sign-up";
 import { between, pick, seededRandom } from "../random";
 import { addElements, updateElements } from "../scene";
 import { roundButton, tag, textBlock, textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
-import { BUTTON, DECOY_COLORS } from "../theme";
+import { BUTTON, DECOY_COLORS, XP } from "../theme";
 import { currentTheme } from "../ink";
 
 const CONFETTI_COUNT = 140;
+const AVATAR_SIZE = 150;
+const AVATAR_RING = 12;
+
+function playerCard(user: CollaborationUserPresence, center: Point): DrawdyElementSchema[] {
+    const ringSize = AVATAR_SIZE + AVATAR_RING * 2;
+    const ring: DrawdyElementSchema = {
+        type: "shape",
+        componentType: "circle",
+        drawdyElementId: newId(),
+        x: center.x - ringSize / 2,
+        y: center.y - ringSize / 2,
+        width: ringSize,
+        height: ringSize,
+        strokeColor: user.color,
+        fillColor: user.color,
+        strokeWidth: 2,
+        roughness: 0,
+        fillStyle: "solid",
+        text: user.image ? undefined : user.name.trim().charAt(0).toUpperCase(),
+        fontSize: 72,
+        textColor: XP.white,
+        meta: tag("finale", "player-ring"),
+    };
+    const avatar: DrawdyElementSchema[] = user.image
+        ? [
+              {
+                  type: "image",
+                  drawdyElementId: newId(),
+                  x: center.x - AVATAR_SIZE / 2,
+                  y: center.y - AVATAR_SIZE / 2,
+                  width: AVATAR_SIZE,
+                  height: AVATAR_SIZE,
+                  url: user.image,
+                  meta: tag("finale", "player-avatar"),
+              },
+          ]
+        : [];
+    const textX = center.x + ringSize / 2 + 36;
+    return [
+        ring,
+        ...avatar,
+        textLine({ stage: "finale", role: "player-name", x: textX, y: center.y - 64, text: user.name, fontSize: 52, ink: "title" }),
+        textLine({
+            stage: "finale",
+            role: "player-status",
+            x: textX + 2,
+            y: center.y + 16,
+            text: looksSignedUp(user) ? "Signed in to Drawdy" : "Guest",
+            fontSize: 28,
+            ink: "accent",
+        }),
+    ];
+}
 
 export class FinaleStage implements Stage {
     readonly id = "finale" as const;
@@ -53,7 +110,7 @@ export class FinaleStage implements Stage {
             role: "subtitle",
             x: x + 124,
             y: y + 470,
-            lines: ["All 4 challenges done.", "See you at Cleverse, 13th floor, 10-11 October 2026."],
+            lines: [`All ${CHALLENGE_COUNT} challenges done.`, "See you at Cleverse, 13th floor, 10-11 October 2026."],
             fontSize: 34,
             ink: "accent",
         });
@@ -67,7 +124,9 @@ export class FinaleStage implements Stage {
             edge: BUTTON.orange.edge,
         });
         this.againIds = new Set(again.ids);
-        const elements = [...confetti, title, ...lines, ...again.elements];
+        const self = await lookUpSelf();
+        const card = self.kind === "found" ? playerCard(self.user, { x: x + 210, y: y + 720 }) : [];
+        const elements = [...confetti, title, ...lines, ...card, ...again.elements];
         this.owned = elements.map((e) => e.drawdyElementId);
         this.required = [title.drawdyElementId, ...again.ids];
         await addElements(elements);
@@ -93,7 +152,7 @@ export class FinaleStage implements Stage {
                 },
             }))
         );
-        this.env.toast("You won.", "good", 5000);
+        this.env.toast(self.kind === "found" ? `You won, ${self.user.name}.` : "You won.", "good", 5000);
     }
 
     requiredIds(): Iterable<string> {

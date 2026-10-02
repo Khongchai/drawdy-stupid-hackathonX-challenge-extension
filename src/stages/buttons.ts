@@ -1,4 +1,5 @@
 import type { DriverSubscriptionEvent, LocalAnimation } from "@drawdy/driver-protocol";
+import { challengeTitle } from "../challenges";
 import { Point, distance } from "../geometry";
 import { subscribe, unsubscribe } from "../host";
 import { addElements, restartAnimation, updateElements } from "../scene";
@@ -36,7 +37,7 @@ export class ButtonsStage implements Stage {
             y: y + 20,
             width: width - 80,
             height: height - 40,
-            title: "Challenge 1 of 4",
+            title: challengeTitle(this.id),
         });
         const instructions = textLine({
             stage: this.id,

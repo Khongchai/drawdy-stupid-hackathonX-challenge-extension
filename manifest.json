@@ -2,7 +2,11 @@
     "driverId": "stupidhack.x-challenge",
     "driverName": "Stupid Hackathon X Challenge",
     "driverVersion": "0.1.0",
-    "description": "Four stupid challenges for Stupid Hackathon X (10-11 October 2026, Cleverse 13th floor): press two buttons at once, find a rectangle in 8,000 shapes, catch Diny, and laser your way out of a moving maze.",
+    "description": "Five stupid challenges for Stupid Hackathon X (10-11 October 2026, Cleverse 13th floor): sign up, press two buttons at once, find a rectangle in 8,000 shapes, catch Diny, and laser your way out of a moving maze.",
     "main": "main.js",
-    "permissions": ["dom", "scene"]
+    "permissions": [
+        "dom",
+        "scene",
+        "collaboration"
+    ]
 }

@@ -14,9 +14,9 @@ import {
 import { StageId, roundButton, textBlock } from "./scene-kit";
 import { Completion, Stage, StageEnv } from "./stage";
 import { createStage, regionSizeFor } from "./stages";
+import { ORDER } from "./challenges";
 import { PANEL_INK } from "./theme";
 
-const ORDER: readonly StageId[] = ["intro", "buttons", "find-rect", "diny", "maze", "finale"];
 const FADE_OUT_MS = 800;
 
 type Completed = { ids: string[]; goIds: Set<string> };

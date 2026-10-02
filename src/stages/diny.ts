@@ -1,4 +1,5 @@
 import type { DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import { challengeTitle } from "../challenges";
 import { chooseEscape, insetRect, randomPointIn } from "../flee";
 import { Point, Rect, distance, distanceToSegment } from "../geometry";
 import { newId, subscribe, trySend, unsubscribe } from "../host";
@@ -59,7 +60,7 @@ export class DinyStage implements Stage {
             role: "title",
             x: x + 40,
             y: y + 40,
-            text: "Challenge 3 of 4: Click Diny.",
+            text: `${challengeTitle(this.id)}: Click Diny.`,
             fontSize: 46,
             ink: "title",
         });

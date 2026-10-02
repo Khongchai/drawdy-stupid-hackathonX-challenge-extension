@@ -1,4 +1,5 @@
 import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import { challengeTitle } from "../challenges";
 import { DecoyKind, decoyGrid, generateDecoys } from "../decoys";
 import { FALL_MAX_MS, fallAnimation } from "../fall";
 import { newId } from "../host";
@@ -45,7 +46,7 @@ export class FindRectStage implements Stage {
             role: "title",
             x: x + FIELD_PADDING,
             y: y + 140,
-            text: "Challenge 2 of 4: Find the rectangle and click it.",
+            text: `${challengeTitle(this.id)}: Find the rectangle and click it.`,
             fontSize: Math.round(46 * (width / FOCUS_SIZE.width)),
             ink: "title",
         });

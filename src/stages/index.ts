@@ -6,6 +6,7 @@ import { FinaleStage } from "./finale";
 import { FIND_RECT_REGION, FindRectStage } from "./find-rect";
 import { IntroStage } from "./intro";
 import { MazeStage } from "./maze";
+import { SignUpStage } from "./sign-up";
 
 const DEFAULT_REGION = { width: 1600, height: 1000 };
 
@@ -17,6 +18,8 @@ export function createStage(id: StageId, env: StageEnv): Stage {
     switch (id) {
         case "intro":
             return new IntroStage(env);
+        case "sign-up":
+            return new SignUpStage(env);
         case "buttons":
             return new ButtonsStage(env);
         case "find-rect":

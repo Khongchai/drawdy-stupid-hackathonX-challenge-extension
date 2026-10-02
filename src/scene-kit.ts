@@ -4,7 +4,7 @@ import { newId } from "./host";
 import { ink, trackInk } from "./ink";
 import { BUTTON, InkToken, XP } from "./theme";
 
-export type StageId = "intro" | "buttons" | "find-rect" | "diny" | "maze" | "finale";
+export type StageId = "intro" | "sign-up" | "buttons" | "find-rect" | "diny" | "maze" | "finale";
 
 export const META_KEY = "stupidHackathonX";
 

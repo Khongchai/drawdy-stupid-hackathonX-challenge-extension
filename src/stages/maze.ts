@@ -1,4 +1,5 @@
 import type { DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import { challengeTitle } from "../challenges";
 import { Point } from "../geometry";
 import { newId, subscribe, trySend, unsubscribe } from "../host";
 import {
@@ -60,7 +61,7 @@ export class MazeStage implements Stage {
             role: "title",
             x: x + 40,
             y: y + 30,
-            text: "Challenge 4 of 4: อย่าชนขอบ",
+            text: `${challengeTitle(this.id)}: อย่าชนขอบ`,
             fontSize: 46,
             ink: "title",
         });

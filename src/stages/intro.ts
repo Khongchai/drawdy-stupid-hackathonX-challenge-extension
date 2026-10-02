@@ -1,4 +1,5 @@
 import type { DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import { CHALLENGE_COUNT } from "../challenges";
 import { addElements } from "../scene";
 import { pushButton, textBlock, textLine, xpWindow } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
@@ -102,7 +103,7 @@ export class IntroStage implements Stage {
                 role: "rules",
                 x: left + 40,
                 y: cursor,
-                lines: ["4 challenges. All of them are stupid.", "Delete something a challenge needs and you start over."],
+                lines: [`${CHALLENGE_COUNT} challenges. All of them are stupid.`, "Delete something a challenge needs and you start over."],
                 fontSize: 24,
                 color: PANEL_INK.body,
             })
