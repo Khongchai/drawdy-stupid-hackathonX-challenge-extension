@@ -7,6 +7,7 @@ import {
     existingIds,
     findEmptyRegion,
     flyTo,
+    removeElements,
     removeTaggedElements,
     roleOf,
     toast,
@@ -19,8 +20,12 @@ import { Tantrum } from "./tantrum";
 import { PANEL_INK } from "./theme";
 
 const FADE_OUT_MS = 800;
+const MAX_ANIMATED_EXIT = 600;
+const FLY_MS = 1000;
 
 type Completed = { ids: string[]; goIds: Set<string> };
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class Game {
     private stage: Stage | null = null;
@@ -183,7 +188,10 @@ export class Game {
         this.completed = null;
         this.generation++;
         if (old) await old.dispose();
-        const leaving = animateOutAndRemove(oldIds, FADE_OUT_MS);
+        const leaving =
+            oldIds.length > MAX_ANIMATED_EXIT
+                ? sleep(FLY_MS + 100).then(() => removeElements(oldIds))
+                : animateOutAndRemove(oldIds, FADE_OUT_MS);
         await this.enter(next, error);
         this.transitioning = false;
         await leaving;

@@ -5,7 +5,7 @@ import { StageId, tag } from "./scene-kit";
 
 export type DecoyKind = "circle" | "line" | "arrow" | "squiggle" | "glyph";
 
-const GLYPHS = ["○", "◇", "△", "☆", "♡", "✿", "◎", "⬡", "✦", "◆", "●", "★"] as const;
+const GLYPHS = ["○", "△", "☆", "♡", "✿", "◎", "⬡", "✦", "●", "★"] as const;
 const FILL_STYLES: readonly FillStyle[] = ["solid", "solid", "hachure", "cross-hatch"];
 
 const KIND_WEIGHTS: readonly (readonly [DecoyKind, number])[] = [

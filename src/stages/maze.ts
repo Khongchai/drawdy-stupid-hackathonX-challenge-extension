@@ -31,15 +31,15 @@ const START_RADIUS = 36;
 const LASER_TOOL = "laser-pointer";
 const MISSED_START_COOLDOWN_MS = 2500;
 const HIT_MARKER_MS = 1400;
-const CORRIDOR_LENGTH = 44;
-const CORRIDOR_BOX: CellBox = { minRow: -1, maxRow: CELLS, minCol: CELLS, maxCol: CELLS + 5 };
+export const CORRIDOR_LENGTH = 64;
+export const CORRIDOR_BOX: CellBox = { minRow: -1, maxRow: CELLS, minCol: CELLS, maxCol: CELLS + 7 };
 const INITIAL_REVEALED = 1;
 const REVEAL_STEP = 2;
-const STRETCH_MS = 10_000;
+const STRETCH_MS = 20_000;
 const CORRIDOR_REDRAW_MS = 100;
 const LAUGHS = ["hehehe 😆", "hehehehe 😆", "hehehe 😆", "hehe 😆"];
 
-export const MAZE_REGION = { width: 1760, height: 1320 };
+export const MAZE_REGION = { width: 1980, height: 1320 };
 
 type Run = { last: TimedPoint; laserConfirmed: boolean | null };
 type WallBatch = { previewId: string; ids: string[]; walls: Segment[] };
@@ -291,7 +291,7 @@ export class MazeStage implements Stage {
             this.env.complete({
                 lines: ["You got out without touching a wall."],
                 textAt: { x: x + 100, y: y + 1215 },
-                goAt: { x: x + 1660, y: y + 1230 },
+                goAt: { x: x + 1880, y: y + 1230 },
             });
             return;
         }

@@ -1,11 +1,10 @@
 import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
 import { challengeTitle } from "../challenges";
 import { DecoyKind, decoyGrid, generateDecoys } from "../decoys";
-import { FALL_MAX_MS, fallAnimation } from "../fall";
 import { newId } from "../host";
 import { currentTheme } from "../ink";
 import { seededRandom } from "../random";
-import { addElements, countElements, elementRects, flyTo, playThenRemove } from "../scene";
+import { addElements, countElements, elementRects, flyTo } from "../scene";
 import { rectCenter } from "../geometry";
 import { textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
@@ -22,6 +21,7 @@ const FIELD_PADDING = 160;
 const TITLE_BAND = 520;
 const GRID = decoyGrid(DECOY_COUNT, DECOY_SPACING, FIELD_ASPECT);
 const FOCUS_SIZE = { width: 1600, height: 1000 };
+const FOCUS_FLY_MS = 1600;
 
 export const FIND_RECT_REGION = {
     width: GRID.width + FIELD_PADDING * 2,
@@ -117,14 +117,8 @@ export class FindRectStage implements Stage {
     private solve(rectId: string): void {
         this.solved = true;
         this.owned.add(rectId);
-        this.decoyKinds.delete(rectId);
         this.env.toast("Found it.", "good", 4000);
-        const decoyIds = [...this.decoyKinds.keys()];
-        for (const id of decoyIds) this.owned.delete(id);
-        this.decoyKinds.clear();
-        const random = seededRandom(Date.now());
-        const lines = ["Found the rectangle.", "You drew it."];
-        void playThenRemove(decoyIds, () => fallAnimation(random), FALL_MAX_MS).then(() => this.focusOn(rectId, lines));
+        void this.focusOn(rectId, ["Found the rectangle.", "You drew it."]);
     }
 
     private async focusOn(rectId: string, lines: readonly string[]): Promise<void> {
@@ -136,7 +130,7 @@ export class FindRectStage implements Stage {
             y: center.y - FOCUS_SIZE.height / 2,
             ...FOCUS_SIZE,
         };
-        await flyTo(focus);
+        await flyTo(focus, FOCUS_FLY_MS);
         this.env.complete({
             lines,
             textAt: { x: focus.x + 80, y: focus.y + focus.height - 190 },

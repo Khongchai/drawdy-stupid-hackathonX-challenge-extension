@@ -82,9 +82,11 @@ describe("generateDecoys", () => {
 });
 
 describe("generateDecoys shapes", () => {
-    it("uses no diamonds", () => {
+    it("uses no diamond shapes and no diamond text characters", () => {
+        const diamondGlyphs = ["◇", "◆", "◈", "⬦", "⬥", "♢", "♦"];
         const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(17);
         expect(decoys.filter((d) => d.element.type === "shape" && d.element.componentType === "diamond")).toEqual([]);
+        expect(decoys.filter((d) => d.element.type === "text" && diamondGlyphs.includes(d.element.text))).toEqual([]);
     });
 });
 

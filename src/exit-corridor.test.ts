@@ -99,6 +99,19 @@ describe("generateCorridorPath", () => {
     });
 });
 
+describe("generateCorridorPath at the challenge size", () => {
+    const challengeBox: CellBox = { minRow: -1, maxRow: cellsPerSide, minCol: cellsPerSide, maxCol: cellsPerSide + 7 };
+    const challengeLength = 64;
+
+    it.each(seeds)("fills a 64 cell corridor in the 8 column box beside the maze (seed %i)", (seed) => {
+        const random = seededRandom(seed);
+        const maze = generateMaze(cellsPerSide, cellSize, random, "right");
+        const path = generateCorridorPath(maze, challengeBox, challengeLength, random);
+        expect(path).toHaveLength(challengeLength);
+        expect(new Set(path.map((c) => `${c.row},${c.col}`)).size).toBe(challengeLength);
+    });
+});
+
 describe("corridorExit", () => {
     it.each(seeds)("lets a run that follows the open corridor into the next cell escape once growing has stopped (seed %i)", (seed) => {
         const { maze, path } = generateRightExitMazeAndCorridor(seed);
