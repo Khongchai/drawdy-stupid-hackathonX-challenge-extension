@@ -3,7 +3,7 @@ import { Rect } from "./geometry";
 import { Random, between, pick, weightedPick } from "./random";
 import { StageId, tag } from "./scene-kit";
 
-export type DecoyKind = "circle" | "diamond" | "line" | "arrow" | "squiggle" | "glyph";
+export type DecoyKind = "circle" | "line" | "arrow" | "squiggle" | "glyph";
 
 const GLYPHS = ["○", "◇", "△", "☆", "♡", "✿", "◎", "⬡", "✦", "◆", "●", "★"] as const;
 const FILL_STYLES: readonly FillStyle[] = ["solid", "solid", "hachure", "cross-hatch"];
@@ -21,7 +21,6 @@ export type Decoy = { element: DrawdyElementSchema; kind: DecoyKind };
 export type DecoyGrid = { columns: number; rows: number; spacing: number; width: number; height: number };
 
 export const DECOY_MIN_GAP = 28;
-export const DIAMOND_COUNT = 5;
 
 export function decoyGrid(count: number, spacing: number, aspect: number): DecoyGrid {
     const columns = Math.max(1, Math.ceil(Math.sqrt(count * aspect)));
@@ -46,9 +45,8 @@ function decoy(
     const meta = tag(stage, `decoy:${kind}`);
     const roughness = random() < 0.6 ? 0 : between(random, 0.5, 2);
     switch (kind) {
-        case "circle":
-        case "diamond": {
-            const width = kind === "diamond" ? between(random, footprint * 0.8, footprint) : between(random, footprint * 0.35, footprint);
+        case "circle": {
+            const width = between(random, footprint * 0.35, footprint);
             const height = width;
             return {
                 type: "shape",
@@ -137,8 +135,6 @@ export function generateDecoys(
     colors: readonly string[]
 ): Decoy[] {
     const result: Decoy[] = [];
-    const diamondCells = new Set<number>();
-    while (diamondCells.size < Math.min(DIAMOND_COUNT, count)) diamondCells.add(Math.floor(random() * count));
     for (let i = 0; i < count; i++) {
         const cell = {
             x: origin.x + (i % grid.columns) * grid.spacing,
@@ -146,7 +142,7 @@ export function generateDecoys(
             width: grid.spacing,
             height: grid.spacing,
         };
-        const kind: DecoyKind = diamondCells.has(i) ? "diamond" : weightedPick(random, KIND_WEIGHTS);
+        const kind = weightedPick(random, KIND_WEIGHTS);
         result.push({ kind, element: decoy(kind, makeId(), cell, random, stage, colors) });
     }
     return result;

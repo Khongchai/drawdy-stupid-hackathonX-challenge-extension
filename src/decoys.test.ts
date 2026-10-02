@@ -1,6 +1,6 @@
 import type { DrawdyElementSchema } from "@drawdy/driver-protocol";
 import { describe, expect, it } from "vitest";
-import { DECOY_MIN_GAP, DIAMOND_COUNT, decoyGrid, generateDecoys } from "./decoys";
+import { DECOY_MIN_GAP, decoyGrid, generateDecoys } from "./decoys";
 import { Rect } from "./geometry";
 import { seededRandom } from "./random";
 import { DECOY_COLORS } from "./theme";
@@ -81,12 +81,10 @@ describe("generateDecoys", () => {
     });
 });
 
-describe("generateDecoys diamonds", () => {
-    it.each([17, 18, 19])("places exactly five diamonds, all square, so each one can be turned into a rectangle (seed %i)", (seed) => {
-        const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(seed);
-        const diamonds = decoys.flatMap((d) => (d.element.type === "shape" && d.element.componentType === "diamond" ? [d.element] : []));
-        expect(diamonds).toHaveLength(DIAMOND_COUNT);
-        expect(diamonds.every((d) => d.width === d.height)).toBe(true);
+describe("generateDecoys shapes", () => {
+    it("uses no diamonds", () => {
+        const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(17);
+        expect(decoys.filter((d) => d.element.type === "shape" && d.element.componentType === "diamond")).toEqual([]);
     });
 });
 
