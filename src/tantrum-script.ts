@@ -43,7 +43,7 @@ export const LINES: Record<TantrumKind, readonly string[]> = {
         "Also not a rectangle.",
         "That one is round. Rectangles are not round.",
         "You have clicked many things. None of them had four corners.",
-        "I put 8,000 of these here and you are going to click every single one, aren't you.",
+        "I put 9,900 of these here and you are going to click every single one, aren't you.",
         "Counting corners for you: zero. Zero corners.",
         "สี่เหลี่ยม. สี่. เหลี่ยม.",
     ],

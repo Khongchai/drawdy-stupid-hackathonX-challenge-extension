@@ -5,7 +5,7 @@ import { Rect } from "./geometry";
 import { seededRandom } from "./random";
 import { DECOY_COLORS } from "./theme";
 
-const decoyCount = 8000;
+const decoyCount = 9900;
 const spacing = 72;
 const aspect = 1.6;
 const origin = { x: -800, y: 200 };
@@ -39,7 +39,7 @@ function boundingBoxOf(element: DrawdyElementSchema): Rect {
     }
 }
 
-function generateEightThousandDecoysWithSequentialIds(seed: number) {
+function generateNineThousandNineHundredDecoysWithSequentialIds(seed: number) {
     let next = 0;
     const grid = decoyGrid(decoyCount, spacing, aspect);
     const decoys = generateDecoys(decoyCount, origin, grid, seededRandom(seed), "find-rect", () => `id-${next++}`, DECOY_COLORS.light);
@@ -47,8 +47,8 @@ function generateEightThousandDecoysWithSequentialIds(seed: number) {
 }
 
 describe("generateDecoys", () => {
-    it("produces 8000 decoys with unique ids and no rectangle shape among them", () => {
-        const { decoys } = generateEightThousandDecoysWithSequentialIds(11);
+    it("produces 9900 decoys with unique ids and no rectangle shape among them", () => {
+        const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(11);
         expect(decoys).toHaveLength(decoyCount);
         expect(new Set(decoys.map((d) => d.element.drawdyElementId)).size).toBe(decoyCount);
         const rectangles = decoys.filter(
@@ -59,13 +59,13 @@ describe("generateDecoys", () => {
 
     it("uses no text glyph that is drawn as a rectangle", () => {
         const rectangleGlyphs = ["□", "▢", "▭", "▯", "■", "▬", "▮", "▪", "▫"];
-        const { decoys } = generateEightThousandDecoysWithSequentialIds(13);
+        const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(13);
         const texts = decoys.flatMap((d) => (d.element.type === "text" ? [d.element.text] : []));
         expect(texts.filter((t) => rectangleGlyphs.includes(t))).toEqual([]);
     });
 
     it("keeps every decoy inside its own grid cell, at least the minimum gap away from its neighbours", () => {
-        const { grid, decoys } = generateEightThousandDecoysWithSequentialIds(5);
+        const { grid, decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(5);
         decoys.forEach(({ element }, i) => {
             const inner = {
                 x: origin.x + (i % grid.columns) * spacing + DECOY_MIN_GAP / 2 - rounding,

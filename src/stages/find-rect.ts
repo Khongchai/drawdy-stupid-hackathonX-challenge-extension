@@ -11,7 +11,7 @@ import { textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
 import { DECOY_COLORS } from "../theme";
 
-const DECOY_COUNT = 8000;
+const DECOY_COUNT = 9900;
 const BOARD_ELEMENT_LIMIT = 10_000;
 const RESERVED_ELEMENTS = 60;
 const CLICK_TOAST_COOLDOWN_MS = 1500;
