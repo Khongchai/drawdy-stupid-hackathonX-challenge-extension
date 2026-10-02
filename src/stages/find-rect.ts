@@ -33,6 +33,7 @@ export class FindRectStage implements Stage {
     private owned = new Set<string>();
     private required: string[] = [];
     private decoyKinds = new Map<string, DecoyKind>();
+    private drawnRects = new Set<string>();
     private solved = false;
     private lastClickToastAt = 0;
     private hintTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,11 +93,16 @@ export class FindRectStage implements Stage {
     handle(event: DriverSubscriptionEvent): void {
         if (this.solved) return;
         if (event.type === "subscription:scene:elements-added") {
-            const drawn = event.body.drawdyElements.find((e) => !this.owned.has(e.id) && e.componentType === "rect");
-            if (drawn) this.solve(drawn.id);
+            for (const e of event.body.drawdyElements) {
+                if (!this.owned.has(e.id) && e.componentType === "rect") this.drawnRects.add(e.id);
+            }
             return;
         }
-        if (event.type === "subscription:scene:click") this.onClick(event.body.drawdyElementIds, event.body.cursor.canvasSpace);
+        if (event.type === "subscription:scene:click") {
+            const clickedRect = event.body.drawdyElementIds.find((id) => this.drawnRects.has(id));
+            if (clickedRect) this.solve(clickedRect);
+            else this.onClick(event.body.drawdyElementIds, event.body.cursor.canvasSpace);
+        }
     }
 
     private onClick(ids: readonly string[], at: { x: number; y: number }): void {

@@ -57,6 +57,13 @@ describe("generateDecoys", () => {
         expect(rectangles).toEqual([]);
     });
 
+    it("uses no text glyph that is drawn as a rectangle", () => {
+        const rectangleGlyphs = ["□", "▢", "▭", "▯", "■", "▬", "▮", "▪", "▫"];
+        const { decoys } = generateEightThousandDecoysWithSequentialIds(13);
+        const texts = decoys.flatMap((d) => (d.element.type === "text" ? [d.element.text] : []));
+        expect(texts.filter((t) => rectangleGlyphs.includes(t))).toEqual([]);
+    });
+
     it("keeps every decoy inside its own grid cell, at least the minimum gap away from its neighbours", () => {
         const { grid, decoys } = generateEightThousandDecoysWithSequentialIds(5);
         decoys.forEach(({ element }, i) => {

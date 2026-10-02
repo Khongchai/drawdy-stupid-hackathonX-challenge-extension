@@ -3,10 +3,9 @@ import { Rect } from "./geometry";
 import { Random, between, pick, weightedPick } from "./random";
 import { StageId, tag } from "./scene-kit";
 
-export type DecoyKind = "circle" | "diamond" | "line" | "arrow" | "squiggle" | "glyph" | "box-glyph";
+export type DecoyKind = "circle" | "diamond" | "line" | "arrow" | "squiggle" | "glyph";
 
 const GLYPHS = ["○", "◇", "△", "☆", "♡", "✿", "◎", "⬡", "✦", "◆", "●", "★"] as const;
-const BOX_GLYPHS = ["□", "▢", "▭", "▯", "■"] as const;
 const FILL_STYLES: readonly FillStyle[] = ["solid", "solid", "hachure", "cross-hatch"];
 
 const KIND_WEIGHTS: readonly (readonly [DecoyKind, number])[] = [
@@ -16,7 +15,6 @@ const KIND_WEIGHTS: readonly (readonly [DecoyKind, number])[] = [
     ["arrow", 8],
     ["squiggle", 6],
     ["glyph", 15],
-    ["box-glyph", 3],
 ];
 
 export type Decoy = { element: DrawdyElementSchema; kind: DecoyKind };
@@ -113,15 +111,14 @@ function decoy(
                 meta,
             };
         }
-        case "glyph":
-        case "box-glyph": {
+        case "glyph": {
             const fontSize = Math.round(between(random, footprint * 0.35, footprint / 1.4));
             return {
                 type: "text",
                 drawdyElementId: id,
                 x: left + random() * (footprint - fontSize),
                 y: top + random() * (footprint - fontSize * 1.4),
-                text: kind === "glyph" ? pick(random, GLYPHS) : pick(random, BOX_GLYPHS),
+                text: pick(random, GLYPHS),
                 fontSize,
                 color,
                 meta,

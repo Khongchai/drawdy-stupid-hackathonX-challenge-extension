@@ -12,13 +12,13 @@ If something a challenge needs is deleted (by you, by undo, or by a collaborator
 | --- | --- | --- |
 | 1 | Sign up for Drawdy. | Sign in with Drawdy's own sign-in button. The page reloads after sign-in and the challenge passes. If you were already signed in, it passes right away. |
 | 2 | Click two buttons at the same time. | Drag one button on top of the other, then click where they overlap. Dropping a button does not count as a click. |
-| 3 | Find the rectangle in 8,000 shapes and click on it. | There is no rectangle. Draw one with the rectangle tool. |
+| 3 | Find the rectangle in 8,000 shapes and click on it. | There is no rectangle. Draw one with the rectangle tool, then click it. |
 | 4 | Click Diny. She runs away from the cursor and opens her mouth while she runs. | Tap her on a touch screen, or switch devtools to touch emulation. A touch never moves the cursor before the tap, so she does not see it coming. After 30 seconds you pass anyway with "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ". |
 | 5 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer (the challenge says so), press the green Start circle and drag out of the exit without touching a wall. |
 
 ## Getting it wrong
 
-Every wrong move (No on the intro, one button, a shape that isn't a rectangle, chasing Diny, touching a wall, the wrong tool, letting go early, deleting challenge elements) raises an annoyance level. The level drops by one every 30 seconds without a wrong move, and by two when a challenge is solved. As it rises, the replies get worse:
+Every wrong move (No on the intro, one button, a shape that isn't a rectangle, chasing Diny, touching a wall, the wrong tool, letting go early, deleting challenge elements) raises an annoyance level. The level drops by one every 30 seconds without a wrong move and goes back to zero at the start of every step. Deletions keep their own line count across steps, since each one sends you back to the intro. As it rises, the replies get worse:
 
 | Level | What happens |
 | --- | --- |

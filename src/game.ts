@@ -19,7 +19,6 @@ import { Tantrum } from "./tantrum";
 import { PANEL_INK } from "./theme";
 
 const FADE_OUT_MS = 800;
-const SOLVED_CALM_DOWN = 2;
 
 type Completed = { ids: string[]; goIds: Set<string> };
 
@@ -123,6 +122,7 @@ export class Game {
         this.generation++;
         this.region = region;
         this.completed = null;
+        this.tantrum.reset();
         const stage = createStage(id, this.envFor(region, error, this.generation));
         this.stage = stage;
         await flyTo(region);
@@ -131,7 +131,6 @@ export class Game {
 
     private async showCompletion(generation: number, result: Completion): Promise<void> {
         if (generation !== this.generation || this.completed || !this.region) return;
-        this.tantrum.calmDown(SOLVED_CALM_DOWN);
         const region = this.region;
         const goAt = result.goAt ?? { x: region.x + region.width - 150, y: region.y + region.height - 130 };
         const textAt = result.textAt ?? { x: region.x + 80, y: region.y + region.height - 190 };

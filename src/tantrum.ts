@@ -134,8 +134,8 @@ export class Tantrum {
         if (reaction.effects.includes("fake-delete")) this.once("fake-delete", () => sleep(3600).then(fakeDelete));
     }
 
-    calmDown(steps: number): void {
-        this.meter.calmDown(steps);
+    reset(): void {
+        this.meter.reset(["deleted"]);
     }
 
     private once(effect: TantrumEffect, run: () => Promise<void>): void {

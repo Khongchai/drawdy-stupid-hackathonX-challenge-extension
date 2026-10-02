@@ -62,11 +62,13 @@ describe("AnnoyanceMeter", () => {
         expect(afterTwoCalmPeriods).toBe(3);
     });
 
-    it("lowers the level by the given steps when calmed down after a solved challenge", () => {
+    it("starts over at level zero with fresh lines after a reset, except for the kinds it keeps counting", () => {
         const meter = new AnnoyanceMeter(decayEveryMs);
         for (let i = 0; i < 4; i++) meter.record("wall", i * quickRepeatMs);
-        meter.calmDown(2);
-        expect(meter.record("wall", 4 * quickRepeatMs).level).toBe(2);
+        meter.record("deleted", 4 * quickRepeatMs);
+        meter.reset(["deleted"]);
+        expect(meter.record("wall", 5 * quickRepeatMs)).toEqual({ level: 0, timesForKind: 0 });
+        expect(meter.record("deleted", 6 * quickRepeatMs).timesForKind).toBe(1);
     });
 
     it("counts each kind separately while sharing one level", () => {

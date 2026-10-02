@@ -161,7 +161,11 @@ export class AnnoyanceMeter {
         return { level, timesForKind };
     }
 
-    calmDown(steps: number): void {
-        this.level = Math.max(0, this.level - steps);
+    reset(keepCountsFor: readonly TantrumKind[]): void {
+        this.level = 0;
+        this.lastAt = 0;
+        for (const kind of [...this.perKind.keys()]) {
+            if (!keepCountsFor.includes(kind)) this.perKind.delete(kind);
+        }
     }
 }
