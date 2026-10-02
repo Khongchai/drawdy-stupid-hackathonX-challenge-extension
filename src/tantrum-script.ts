@@ -11,7 +11,7 @@ export type TantrumKind =
     | "missed-start"
     | "deleted";
 
-export type TantrumEffect = "shake-toast" | "shake-camera" | "no-burst" | "fake-delete" | "mangle";
+export type TantrumEffect = "shake-toast" | "flash" | "shake-camera" | "shockwave" | "punch-zoom" | "fake-delete" | "mangle";
 
 export type Reaction = {
     text: string;
@@ -120,8 +120,10 @@ export function mangle(text: string, amount: number, random: Random): string {
 
 export const LEVELS = {
     unhinged: 3,
+    flash: 4,
     shakeCamera: 4,
-    noBurst: 5,
+    shockwave: 5,
+    punchZoom: 6,
     fakeDelete: 7,
     mangle: 8,
 };
@@ -132,8 +134,10 @@ export function reactionFor(kind: TantrumKind, timesForKind: number, level: numb
     const base = pastScript ? MELTDOWN_LINES[Math.floor(random() * MELTDOWN_LINES.length)] : lines[timesForKind];
     const effects: TantrumEffect[] = [];
     if (level >= LEVELS.unhinged) effects.push("shake-toast");
+    if (level >= LEVELS.flash) effects.push("flash");
     if (level >= LEVELS.shakeCamera) effects.push("shake-camera");
-    if (level >= LEVELS.noBurst) effects.push("no-burst");
+    if (level >= LEVELS.shockwave) effects.push("shockwave");
+    if (level >= LEVELS.punchZoom) effects.push("punch-zoom");
     if (level >= LEVELS.fakeDelete && level % 3 === 1) effects.push("fake-delete");
     if (level >= LEVELS.mangle) effects.push("mangle");
     const intensity = Math.max(0, level - LEVELS.unhinged + 1);

@@ -3,11 +3,14 @@ import { trySend } from "./host";
 
 export type PreviewFrame = { drawdyElementId: string; transform: PreviewTransform }[];
 
-export function startPreviewLoop(frame: (nowMs: number) => PreviewFrame, retryMs = 100): () => void {
+export function startPreviewLoop(
+    frame: (nowMs: number) => PreviewFrame | Promise<PreviewFrame>,
+    retryMs = 100
+): () => void {
     let running = true;
     const tick = async () => {
         if (!running) return;
-        const previews = frame(performance.now());
+        const previews = await frame(performance.now());
         const sent =
             previews.length > 0 &&
             (await trySend({ type: "command:scene:preview-transforms", req: { previews } })) !== null;

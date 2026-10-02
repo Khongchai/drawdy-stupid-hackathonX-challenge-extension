@@ -6,15 +6,17 @@ import {
     MazeLayout,
     TimedPoint,
     cellCenter,
-    exitMarkerPoint,
+    exitGap,
     generateMaze,
     judgeLaserStep,
     mazeDriftAt,
+    stretchProgress,
+    stretchWallsAt,
     wallPoseAt,
 } from "../maze";
 import { PreviewFrame, beginPreview, endPreview, startPreviewLoop } from "../preview-loop";
 import { seededRandom } from "../random";
-import { addElements, updateElements } from "../scene";
+import { addElements, flyTo, updateElements } from "../scene";
 import { tag, textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
 import { BUTTON } from "../theme";
@@ -28,8 +30,17 @@ const START_RADIUS = 36;
 const LASER_TOOL = "laser-pointer";
 const MISSED_START_COOLDOWN_MS = 2500;
 const HIT_MARKER_MS = 1400;
+const STRETCH_BASE = CELL_SIZE * 0.75;
+const STRETCH_STEP = CELL_SIZE * 1.6;
+const STRETCH_TRIGGER = CELL_SIZE * 0.9;
+const STRETCH_TAU_S = 0.12;
+const MIN_EXTENSIONS = 4;
+const MAX_EXTENSIONS = 6;
+const CAMERA_PAN_MS = 350;
+const EXIT_LABEL_GAP = 50;
+const EXTENSION_TAUNTS = ["Almost.", "So close.", "Keep going.", "The exit moved. Exits do that.", "Just a bit more.", "Nearly there. Probably."];
 
-type Run = { last: TimedPoint; laserConfirmed: boolean | null };
+type Run = { last: TimedPoint; laserConfirmed: boolean | null; extensionsLeft: number };
 
 export class MazeStage implements Stage {
     readonly id = "maze" as const;
@@ -47,6 +58,14 @@ export class MazeStage implements Stage {
     private previewing = false;
     private lastMissedStartToast = 0;
     private hitMarkers = new Set<string>();
+    private exitId = "";
+    private stretchIds: [string, string] = ["", ""];
+    private stretchPreviewId: string | null = null;
+    private stretchTarget = STRETCH_BASE;
+    private stretchVisible = STRETCH_BASE;
+    private lastFrameAt = 0;
+    private panned = 0;
+    private random = seededRandom(Date.now());
 
     constructor(private readonly env: StageEnv) {}
 
@@ -107,18 +126,23 @@ export class MazeStage implements Stage {
             textColor: "#ffffff",
             meta: tag(this.id, "start"),
         };
-        const exitPoint = exitMarkerPoint(maze, 70);
+        const gap = exitGap(maze);
+        const labelAt = {
+            x: (gap.a.x + gap.b.x) / 2 + gap.direction.x * (STRETCH_BASE + EXIT_LABEL_GAP),
+            y: (gap.a.y + gap.b.y) / 2 + gap.direction.y * (STRETCH_BASE + EXIT_LABEL_GAP),
+        };
         const exitLabel = textLine({
             stage: this.id,
             role: "exit",
-            x: this.origin.x + exitPoint.x - 34,
-            y: this.origin.y + exitPoint.y - 16,
+            x: this.origin.x + labelAt.x - 34,
+            y: this.origin.y + labelAt.y - 16,
             text: "EXIT",
             fontSize: 28,
             ink: "warm",
         });
         this.wallIds = walls.map((w) => w.drawdyElementId);
         this.startId = start.drawdyElementId;
+        this.exitId = exitLabel.drawdyElementId;
         this.driftingIds = [start.drawdyElementId, exitLabel.drawdyElementId];
         const elements = [title, subtitle, ...walls, start, exitLabel];
         this.owned = elements.map((e) => e.drawdyElementId);
@@ -133,6 +157,13 @@ export class MazeStage implements Stage {
         ];
         const began = await beginPreview([...this.wallIds, ...this.driftingIds]);
         this.previewing = began.size > 0;
+        this.stretchIds = [newId(), newId()];
+        const stretch = await trySend({
+            type: "command:scene:create-drawdy-preview-elements",
+            req: { elements: this.stretchSchemas(performance.now()) },
+        });
+        this.stretchPreviewId = stretch?.previewId ?? null;
+        this.lastFrameAt = performance.now();
         this.stopLoop = startPreviewLoop((now) => this.frame(now));
         this.env.toast("Use the laser pointer. Don't touch the walls.", "info", 5000);
     }
@@ -145,19 +176,43 @@ export class MazeStage implements Stage {
         return this.owned;
     }
 
-    private frame(now: number): PreviewFrame {
+    private stretchSchemas(now: number) {
+        const walls = stretchWallsAt(this.maze!, this.origin, this.stretchVisible, now);
+        return walls.map((wall, i) => ({
+            type: "line" as const,
+            drawdyElementId: this.stretchIds[i],
+            from: [wall.a.x, wall.a.y] as [number, number],
+            to: [wall.b.x, wall.b.y] as [number, number],
+            color: ink("wall"),
+            strokeWidth: WALL_WIDTH,
+            roughness: 0,
+        }));
+    }
+
+    private async frame(now: number): Promise<PreviewFrame> {
         const maze = this.maze;
         if (!maze || !this.previewing) return [];
+        const dt = Math.min(0.1, (now - this.lastFrameAt) / 1000);
+        this.lastFrameAt = now;
+        this.stretchVisible += (this.stretchTarget - this.stretchVisible) * (1 - Math.exp(-dt / STRETCH_TAU_S));
+        if (this.stretchPreviewId) {
+            await trySend({ type: "command:scene:update-drawdy-preview-elements", req: { elements: this.stretchSchemas(now) } });
+        }
         const drift = mazeDriftAt(now);
+        const direction = exitGap(maze).direction;
+        const exitShift = this.stretchVisible - STRETCH_BASE;
         return [
             ...this.wallIds.map((drawdyElementId, i) => {
                 const pose = wallPoseAt(maze, i, now);
                 return { drawdyElementId, transform: { x: pose.dx, y: pose.dy, scale: 1, rotation: pose.rotation } };
             }),
-            ...this.driftingIds.map((drawdyElementId) => ({
-                drawdyElementId,
-                transform: { x: drift.x, y: drift.y, scale: 1, rotation: 0 },
-            })),
+            ...this.driftingIds.map((drawdyElementId) => {
+                const shift = drawdyElementId === this.exitId ? exitShift : 0;
+                return {
+                    drawdyElementId,
+                    transform: { x: drift.x + direction.x * shift, y: drift.y + direction.y * shift, scale: 1, rotation: 0 },
+                };
+            }),
         ];
     }
 
@@ -179,13 +234,14 @@ export class MazeStage implements Stage {
     }
 
     private beginRun(at: Point): void {
-        const run: Run = { last: { ...at, t: performance.now() }, laserConfirmed: null };
+        const extensionsLeft = MIN_EXTENSIONS + Math.floor(this.random() * (MAX_EXTENSIONS - MIN_EXTENSIONS + 1));
+        const run: Run = { last: { ...at, t: performance.now() }, laserConfirmed: null, extensionsLeft };
         this.run = run;
         void trySend({ type: "command:tools:get-active" }).then((value) => {
             if (this.run !== run) return;
             run.laserConfirmed = value?.toolId === LASER_TOOL;
             if (!run.laserConfirmed) {
-                this.run = null;
+                this.endRun();
                 this.env.tantrum("wrong-tool");
             }
         });
@@ -196,10 +252,10 @@ export class MazeStage implements Stage {
         const maze = this.maze;
         if (!run || !maze) return;
         const next = { ...at, t: performance.now() };
-        const verdict = judgeLaserStep(maze, this.origin, run.last, next, WALL_TOLERANCE);
+        const verdict = judgeLaserStep(maze, this.origin, run.last, next, WALL_TOLERANCE, this.stretchTarget);
         run.last = next;
         if (verdict === "hit-wall") {
-            this.run = null;
+            this.endRun();
             void this.showHitMarker(at);
             this.env.tantrum("wall", at);
             return;
@@ -209,14 +265,49 @@ export class MazeStage implements Stage {
             if (run.laserConfirmed === false) return;
             this.solved = true;
             this.env.toast("You got out.", "good", 5000);
-            this.env.complete({ lines: ["You got out without touching a wall."] });
+            void flyTo(this.env.region, 600).then(() =>
+                this.env.complete({ lines: ["You got out without touching a wall."] })
+            );
+            return;
+        }
+        const progress = stretchProgress(maze, this.origin, next, next.t);
+        if (run.extensionsLeft > 0 && progress > Math.max(0, this.stretchTarget - STRETCH_TRIGGER)) {
+            run.extensionsLeft--;
+            this.stretchTarget += STRETCH_STEP;
+            void this.panCamera(STRETCH_STEP);
+            this.env.toast(EXTENSION_TAUNTS[Math.floor(this.random() * EXTENSION_TAUNTS.length)], "info", 1500);
+        }
+    }
+
+    private async panCamera(distance: number): Promise<void> {
+        const maze = this.maze;
+        const viewport = (await trySend({ type: "command:camera:get-viewport-rect" }))?.rect;
+        if (!maze || !viewport) return;
+        const direction = exitGap(maze).direction;
+        this.panned += distance;
+        await trySend({
+            type: "command:camera:fly-to-rect",
+            req: {
+                rect: { ...viewport, x: viewport.x + direction.x * distance, y: viewport.y + direction.y * distance },
+                flyDurationMs: CAMERA_PAN_MS,
+                zoom: 1000,
+            },
+        });
+    }
+
+    private endRun(): void {
+        this.run = null;
+        this.stretchTarget = STRETCH_BASE;
+        if (this.panned > 0) {
+            this.panned = 0;
+            void flyTo(this.env.region, 500);
         }
     }
 
     private onLaserReleased(): void {
         const run = this.run;
         if (run) {
-            this.run = null;
+            this.endRun();
             this.env.tantrum("let-go", run.last);
             return;
         }
@@ -265,6 +356,10 @@ export class MazeStage implements Stage {
         this.stopLoop = null;
         this.run = null;
         await this.deleteHitMarkers([...this.hitMarkers]);
+        if (this.stretchPreviewId) {
+            await trySend({ type: "command:scene:delete-drawdy-preview-elements", req: { previewIds: [this.stretchPreviewId] } });
+            this.stretchPreviewId = null;
+        }
         for (const id of this.subscriptions) await unsubscribe(id);
         this.subscriptions = [];
         if (this.previewing) await endPreview();

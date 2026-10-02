@@ -14,7 +14,7 @@ If something a challenge needs is deleted (by you, by undo, or by a collaborator
 | 2 | Click two buttons at the same time. | Drag one button on top of the other, then click where they overlap. Dropping a button does not count as a click. |
 | 3 | Find the rectangle in 8,000 shapes and click on it. | There is no rectangle. Draw one with the rectangle tool, then click it. |
 | 4 | Click Diny. She runs away from the cursor and opens her mouth while she runs. | Tap her on a touch screen, or switch devtools to touch emulation. A touch never moves the cursor before the tap, so she does not see it coming. After 30 seconds you pass anyway with "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ". |
-| 5 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer (the challenge says so), press the green Start circle and drag out of the exit without touching a wall. |
+| 5 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer (the challenge says so), press the green Start circle and drag out of the exit without touching a wall. The corridor past the exit grows 4 to 6 times as you near its end, and the camera pans with it, before it lets you out. |
 
 ## Getting it wrong
 
@@ -24,8 +24,9 @@ Every wrong move (No on the intro, one button, a shape that isn't a rectangle, c
 | --- | --- |
 | 0-2 | A plain reply, then a snarkier one. Each kind of mistake has its own lines, then falls back to general meltdown lines. |
 | 3+ | The toast turns red, gets a shouting title and shakes. |
-| 4+ | The camera shakes, harder each level. |
-| 5+ | A burst of "NO", "ไม่", "WRONG" text sprays out of the click and falls. These are preview elements, so nothing is added to the board or the undo history. |
+| 4+ | A red vignette flashes over the window (one DOM overlay) and the camera shakes, harder each level. |
+| 5+ | A shockwave: one ring and one big "NO" / "ไม่" grow out of the click and fade. Two preview elements, so nothing is added to the board or the undo history. |
+| 6+ | The camera punches in and eases back after the shake. |
 | 7+ | Every third level, a fake "Deleting your board... 99%" progress toast. Nothing is deleted. |
 | 8+ | The text gets mangled with combining characters. |
 

@@ -28,9 +28,11 @@ describe("reactionFor", () => {
         }
     });
 
-    it("turns on camera shake and the NO burst at their levels", () => {
+    it("turns on the flash, camera shake, shockwave and punch zoom at their levels", () => {
+        expect(reactionFor("wall", 0, LEVELS.flash, seededRandom(2)).effects).toContain("flash");
         expect(reactionFor("wall", 0, LEVELS.shakeCamera, seededRandom(2)).effects).toContain("shake-camera");
-        expect(reactionFor("wall", 0, LEVELS.noBurst, seededRandom(2)).effects).toContain("no-burst");
+        expect(reactionFor("wall", 0, LEVELS.shockwave, seededRandom(2)).effects).toContain("shockwave");
+        expect(reactionFor("wall", 0, LEVELS.punchZoom, seededRandom(2)).effects).toContain("punch-zoom");
         expect(reactionFor("wall", 0, LEVELS.shakeCamera - 1, seededRandom(2)).effects).not.toContain("shake-camera");
     });
 
