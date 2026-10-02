@@ -206,26 +206,66 @@ export async function flyTo(region: Rect, flyDurationMs = 1000): Promise<void> {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let toastShakeRun = 0;
 
-export type ToastTone = "info" | "good" | "bad";
+export type ToastTone = "info" | "good" | "bad" | "unhinged";
 
-const TOAST_TITLES: Record<ToastTone, { title: string; color: string }> = {
-    info: { title: "Stupid Hackathon X", color: XP.titleNavy },
-    good: { title: "Nice.", color: XP.deepGrass },
-    bad: { title: "Nope.", color: BUTTON.close },
+const UNHINGED_TITLES = ["!!!", "NO.", "AAAAA", "WHY", "ERROR ERROR", "ไม่", "STOP"];
+
+const TOAST_STYLES: Record<ToastTone, { title: () => string; titleColor: string; textColor: string; background: string }> = {
+    info: { title: () => "Stupid Hackathon X", titleColor: XP.titleNavy, textColor: XP.ink, background: XP.tooltip },
+    good: { title: () => "Nice.", titleColor: XP.deepGrass, textColor: XP.ink, background: XP.tooltip },
+    bad: { title: () => "Nope.", titleColor: BUTTON.close, textColor: XP.ink, background: XP.tooltip },
+    unhinged: {
+        title: () => UNHINGED_TITLES[Math.floor(Math.random() * UNHINGED_TITLES.length)],
+        titleColor: XP.tooltip,
+        textColor: XP.white,
+        background: BUTTON.close,
+    },
 };
 
-export async function toast(text: string, tone: ToastTone = "info", durationMs = 3200): Promise<void> {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function shakeToast(base: { x: number; y: number }, intensity: number): Promise<void> {
+    const run = ++toastShakeRun;
+    const amplitude = 4 + intensity * 3;
+    const steps = 10 + intensity * 3;
+    for (let i = 0; i < steps && run === toastShakeRun; i++) {
+        const fade = 1 - i / steps;
+        await trySend({
+            type: "command:dom:move-floating-element",
+            req: {
+                domId: TOAST_DOM_ID,
+                position: {
+                    x: base.x + (Math.random() * 2 - 1) * amplitude * fade,
+                    y: base.y + (Math.random() * 2 - 1) * amplitude * fade,
+                },
+            },
+        });
+        await sleep(30);
+    }
+    if (run === toastShakeRun) {
+        await trySend({ type: "command:dom:move-floating-element", req: { domId: TOAST_DOM_ID, position: base } });
+    }
+}
+
+export async function toast(
+    text: string,
+    tone: ToastTone = "info",
+    durationMs = 3200,
+    options: { shake?: number } = {}
+): Promise<void> {
     const size = await trySend({ type: "command:dom:window-size" });
     const windowWidth = size?.width ?? 1200;
     const boxWidth = Math.min(520, windowWidth - 32);
+    const style = TOAST_STYLES[tone];
     const schema: DomElementSchema = {
         type: "column",
         styles: {
             width: [boxWidth, "px"],
-            backgroundColor: XP.tooltip,
+            backgroundColor: style.background,
             borderColor: XP.ink,
-            borderWidth: [1, "px"],
+            borderWidth: [tone === "unhinged" ? 3 : 1, "px"],
             borderType: "solid",
             borderRadius: [8, "px"],
             padding: [12, "px"],
@@ -235,24 +275,23 @@ export async function toast(text: string, tone: ToastTone = "info", durationMs =
         children: [
             {
                 type: "text",
-                child: TOAST_TITLES[tone].title,
-                styles: { fontWeight: "bold", fontSize: [14, "px"], color: TOAST_TITLES[tone].color },
+                child: style.title(),
+                styles: { fontWeight: "bold", fontSize: [tone === "unhinged" ? 18 : 14, "px"], color: style.titleColor },
             },
-            { type: "text", child: text, styles: { fontSize: [15, "px"], color: XP.ink } },
+            { type: "text", child: text, styles: { fontSize: [tone === "unhinged" ? 18 : 15, "px"], color: style.textColor } },
         ],
     };
+    const position = { x: (windowWidth - boxWidth) / 2, y: 76 };
     await trySend({
         type: "command:dom:upsert-floating-element",
-        req: {
-            domId: TOAST_DOM_ID,
-            position: { x: (windowWidth - boxWidth) / 2, y: 76 },
-            schema,
-            asPopover: false,
-        },
+        req: { domId: TOAST_DOM_ID, position, schema, asPopover: false },
     });
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
         toastTimer = null;
+        toastShakeRun++;
         void trySend({ type: "command:dom:remove-floating-element", req: { domId: TOAST_DOM_ID } });
     }, durationMs);
+    if (options.shake) void shakeToast(position, options.shake);
+    else toastShakeRun++;
 }

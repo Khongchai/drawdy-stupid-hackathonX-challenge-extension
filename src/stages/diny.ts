@@ -21,6 +21,7 @@ const FLEE_SCREEN_PX = 240;
 const FLEE_TAU_S = 0.045;
 const WANDER_TAU_S = 0.9;
 const FLEE_HOLD_MS = 450;
+const MISS_COOLDOWN_MS = 4000;
 const HEARTBREAK = "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ";
 
 export class DinyStage implements Stage {
@@ -43,6 +44,7 @@ export class DinyStage implements Stage {
     private giveUpTimer: ReturnType<typeof setTimeout> | null = null;
     private subscriptions: (string | null)[] = [];
     private previewing = false;
+    private lastMissAt = 0;
 
     constructor(private readonly env: StageEnv) {}
 
@@ -165,6 +167,11 @@ export class DinyStage implements Stage {
             distanceToSegment(cursor, { a: this.position, b: this.target }) < radius * 0.8;
         if (!threatened) return;
         this.target = chooseEscape(this.position, cursor, this.roam, radius, this.random);
+        const now = Date.now();
+        if (this.outcome === "running" && now - this.lastMissAt > MISS_COOLDOWN_MS) {
+            this.lastMissAt = now;
+            this.env.tantrum("diny-miss", cursor);
+        }
         this.fleeingUntil = performance.now() + FLEE_HOLD_MS;
         this.nextWanderAt = this.fleeingUntil + 1200;
     }

@@ -15,9 +15,11 @@ import { StageId, roundButton, textBlock } from "./scene-kit";
 import { Completion, Stage, StageEnv } from "./stage";
 import { createStage, regionSizeFor } from "./stages";
 import { ORDER } from "./challenges";
+import { Tantrum } from "./tantrum";
 import { PANEL_INK } from "./theme";
 
 const FADE_OUT_MS = 800;
+const SOLVED_CALM_DOWN = 2;
 
 type Completed = { ids: string[]; goIds: Set<string> };
 
@@ -28,6 +30,7 @@ export class Game {
     private transitioning = false;
     private generation = 0;
     private queue: Promise<void> = Promise.resolve();
+    private tantrum = new Tantrum();
 
     private run(task: () => Promise<void>): void {
         this.queue = this.queue.then(task).catch((error) => {
@@ -109,6 +112,9 @@ export class Game {
                 if (generation === this.generation) this.run(() => this.replaceStage("intro", null));
             },
             toast: (text, tone, durationMs) => void toast(text, tone, durationMs),
+            tantrum: (kind, at) => {
+                if (generation === this.generation) this.tantrum.react(kind, at);
+            },
         };
     }
 
@@ -125,6 +131,7 @@ export class Game {
 
     private async showCompletion(generation: number, result: Completion): Promise<void> {
         if (generation !== this.generation || this.completed || !this.region) return;
+        this.tantrum.calmDown(SOLVED_CALM_DOWN);
         const region = this.region;
         const goAt = result.goAt ?? { x: region.x + region.width - 150, y: region.y + region.height - 130 };
         const textAt = result.textAt ?? { x: region.x + 80, y: region.y + region.height - 190 };
@@ -164,7 +171,7 @@ export class Game {
         this.run(async () => {
             if (this.transitioning) return;
             const reason = `Something the challenge needs was deleted (${role}). Back to the start.`;
-            void toast(reason, "bad", 5000);
+            this.tantrum.react("deleted");
             await this.replaceStage("intro", reason);
         });
     }

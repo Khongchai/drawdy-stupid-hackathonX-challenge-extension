@@ -96,16 +96,16 @@ export class FindRectStage implements Stage {
             if (drawn) this.solve(drawn.id);
             return;
         }
-        if (event.type === "subscription:scene:click") this.onClick(event.body.drawdyElementIds);
+        if (event.type === "subscription:scene:click") this.onClick(event.body.drawdyElementIds, event.body.cursor.canvasSpace);
     }
 
-    private onClick(ids: readonly string[]): void {
+    private onClick(ids: readonly string[], at: { x: number; y: number }): void {
         const kind = ids.map((id) => this.decoyKinds.get(id)).find((k) => k !== undefined);
         if (!kind) return;
         const now = Date.now();
         if (now - this.lastClickToastAt < CLICK_TOAST_COOLDOWN_MS) return;
         this.lastClickToastAt = now;
-        this.env.toast(kind === "box-glyph" ? "That's text." : "Not a rectangle.", "bad");
+        this.env.tantrum("not-rect", at);
     }
 
     private solve(rectId: string): void {

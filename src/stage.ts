@@ -2,6 +2,7 @@ import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
 import { Point, Rect } from "./geometry";
 import { StageId } from "./scene-kit";
 import { ToastTone } from "./scene";
+import { TantrumKind } from "./tantrum-script";
 
 export type Completion = {
     lines: readonly string[];
@@ -19,6 +20,7 @@ export type StageEnv = {
     advance(): void;
     restart(): void;
     toast(text: string, tone?: ToastTone, durationMs?: number): void;
+    tantrum(kind: TantrumKind, at?: Point): void;
 };
 
 export interface Stage {

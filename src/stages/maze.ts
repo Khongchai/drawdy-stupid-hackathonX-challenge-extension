@@ -186,7 +186,7 @@ export class MazeStage implements Stage {
             run.laserConfirmed = value?.toolId === LASER_TOOL;
             if (!run.laserConfirmed) {
                 this.run = null;
-                this.env.toast("Use the laser pointer.", "bad");
+                this.env.tantrum("wrong-tool");
             }
         });
     }
@@ -201,7 +201,7 @@ export class MazeStage implements Stage {
         if (verdict === "hit-wall") {
             this.run = null;
             void this.showHitMarker(at);
-            this.env.toast("You touched a wall.", "bad");
+            this.env.tantrum("wall", at);
             return;
         }
         if (verdict === "escaped") {
@@ -214,15 +214,16 @@ export class MazeStage implements Stage {
     }
 
     private onLaserReleased(): void {
-        if (this.run) {
+        const run = this.run;
+        if (run) {
             this.run = null;
-            this.env.toast("You let go too early.", "bad");
+            this.env.tantrum("let-go", run.last);
             return;
         }
         const now = Date.now();
         if (now - this.lastMissedStartToast < MISSED_START_COOLDOWN_MS) return;
         this.lastMissedStartToast = now;
-        this.env.toast("Start on the green circle.", "info");
+        this.env.tantrum("missed-start");
     }
 
     private async showHitMarker(at: Point): Promise<void> {

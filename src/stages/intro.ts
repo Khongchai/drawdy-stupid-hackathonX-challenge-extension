@@ -20,7 +20,6 @@ export class IntroStage implements Stage {
     private required: string[] = [];
     private yesIds = new Set<string>();
     private noIds = new Set<string>();
-    private noClicks = 0;
 
     constructor(private readonly env: StageEnv) {}
 
@@ -152,8 +151,7 @@ export class IntroStage implements Stage {
         this.owned = elements.map((e) => e.drawdyElementId);
         this.required = [...window.ids, ...yes.ids];
         await addElements(elements);
-        if (this.env.error) this.env.toast(this.env.error, "bad", 6000);
-        else this.env.toast("Click Yes to start.");
+        if (!this.env.error) this.env.toast("Click Yes to start.");
     }
 
     requiredIds(): Iterable<string> {
@@ -172,8 +170,7 @@ export class IntroStage implements Stage {
             return;
         }
         if (ids.some((id) => this.noIds.has(id))) {
-            const replies = ["Wrong answer.", "Still wrong.", "Click Yes."];
-            this.env.toast(replies[Math.min(this.noClicks++, replies.length - 1)], "bad");
+            this.env.tantrum("no-button", event.body.cursor.canvasSpace);
         }
     }
 

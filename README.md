@@ -16,6 +16,21 @@ If something a challenge needs is deleted (by you, by undo, or by a collaborator
 | 4 | Click Diny. She runs away from the cursor and opens her mouth while she runs. | Tap her on a touch screen, or switch devtools to touch emulation. A touch never moves the cursor before the tap, so she does not see it coming. After 30 seconds you pass anyway with "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ". |
 | 5 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer (the challenge says so), press the green Start circle and drag out of the exit without touching a wall. |
 
+## Getting it wrong
+
+Every wrong move (No on the intro, one button, a shape that isn't a rectangle, chasing Diny, touching a wall, the wrong tool, letting go early, deleting challenge elements) raises an annoyance level. The level drops by one every 30 seconds without a wrong move, and by two when a challenge is solved. As it rises, the replies get worse:
+
+| Level | What happens |
+| --- | --- |
+| 0-2 | A plain reply, then a snarkier one. Each kind of mistake has its own lines, then falls back to general meltdown lines. |
+| 3+ | The toast turns red, gets a shouting title and shakes. |
+| 4+ | The camera shakes, harder each level. |
+| 5+ | A burst of "NO", "ไม่", "WRONG" text sprays out of the click and falls. These are preview elements, so nothing is added to the board or the undo history. |
+| 7+ | Every third level, a fake "Deleting your board... 99%" progress toast. Nothing is deleted. |
+| 8+ | The text gets mangled with combining characters. |
+
+The lines are in `src/tantrum-script.ts` and the effects in `src/tantrum.ts`.
+
 ## Develop
 
 ```bash

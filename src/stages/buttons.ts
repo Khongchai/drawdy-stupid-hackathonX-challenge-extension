@@ -104,11 +104,11 @@ export class ButtonsStage implements Stage {
             const pressedAt = this.pressedAt;
             this.pressedAt = null;
             if (pressedAt && distance(pressedAt, releasedAt) > DRAG_SLOP_PX) return;
-            this.onClick(event.body.drawdyElementIds);
+            this.onClick(event.body.drawdyElementIds, event.body.cursor.canvasSpace);
         }
     }
 
-    private onClick(clicked: readonly string[]): void {
+    private onClick(clicked: readonly string[], at: Point): void {
         const first = this.first!;
         const second = this.second!;
         const hitFirst = clicked.some((id) => first.ids.includes(id));
@@ -120,7 +120,7 @@ export class ButtonsStage implements Stage {
         }
         const face = hitFirst ? first.faceId : second.faceId;
         void restartAnimation([{ drawdyElementId: face, localAnimation: pressAnimation() }]);
-        this.env.toast("Only one button.", "bad");
+        this.env.tantrum("one-button", at);
     }
 
     private async solve(): Promise<void> {
@@ -128,8 +128,8 @@ export class ButtonsStage implements Stage {
         await restartAnimation(
             [this.first!.faceId, this.second!.faceId].map((id) => ({ drawdyElementId: id, localAnimation: pressAnimation() }))
         );
-        this.env.toast("Both buttons.", "good");
-        this.env.complete({ lines: ["Both buttons at the same time."], onPanel: true });
+        this.env.toast("Both buttons at the same time. Nobody said they had to stay where they were.", "good", 5000);
+        this.env.complete({ lines: ["Two buttons, one click.", "Technically correct. The best kind of correct."], onPanel: true });
     }
 
     async dispose(): Promise<void> {
