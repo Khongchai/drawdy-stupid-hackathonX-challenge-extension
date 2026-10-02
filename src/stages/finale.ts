@@ -4,7 +4,8 @@ import { between, pick, seededRandom } from "../random";
 import { addElements, updateElements } from "../scene";
 import { roundButton, tag, textBlock, textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
-import { DECOY_COLORS, XP } from "../theme";
+import { BUTTON, DECOY_COLORS } from "../theme";
+import { currentTheme } from "../ink";
 
 const CONFETTI_COUNT = 140;
 
@@ -19,6 +20,7 @@ export class FinaleStage implements Stage {
     async build(): Promise<void> {
         const { x, y, width, height } = this.env.region;
         const random = seededRandom(Date.now());
+        const colors = DECOY_COLORS[currentTheme()];
         const confetti: DrawdyElementSchema[] = Array.from({ length: CONFETTI_COUNT }, () => {
             const size = between(random, 12, 34);
             return {
@@ -29,8 +31,8 @@ export class FinaleStage implements Stage {
                 y: between(random, y, y + height),
                 width: size,
                 height: size,
-                strokeColor: pick(random, DECOY_COLORS),
-                fillColor: pick(random, DECOY_COLORS),
+                strokeColor: pick(random, colors),
+                fillColor: pick(random, colors),
                 strokeWidth: 2,
                 roughness: 0,
                 fillStyle: "solid",
@@ -44,19 +46,16 @@ export class FinaleStage implements Stage {
             y: y + 260,
             text: "You beat Stupid Hackathon X.",
             fontSize: 84,
-            color: XP.titleNavy,
+            ink: "title",
         });
         const lines = textBlock({
             stage: this.id,
             role: "subtitle",
             x: x + 124,
             y: y + 400,
-            lines: [
-                "Four challenges, zero business value. Well done.",
-                "See you at Cleverse, 13th floor, 10-11 October 2026.",
-            ],
+            lines: ["All 4 challenges done.", "See you at Cleverse, 13th floor, 10-11 October 2026."],
             fontSize: 34,
-            color: XP.taskbarBlue,
+            ink: "accent",
         });
         const again = roundButton({
             stage: this.id,
@@ -64,8 +63,8 @@ export class FinaleStage implements Stage {
             center: { x: x + width - 220, y: y + height - 200 },
             radius: 90,
             label: "Again",
-            face: XP.goldfish,
-            edge: "#b35a00",
+            face: BUTTON.orange.face,
+            edge: BUTTON.orange.edge,
         });
         this.againIds = new Set(again.ids);
         const elements = [...confetti, title, ...lines, ...again.elements];
@@ -94,7 +93,7 @@ export class FinaleStage implements Stage {
                 },
             }))
         );
-        this.env.toast("All four challenges done.", "good", 5000);
+        this.env.toast("You won.", "good", 5000);
     }
 
     requiredIds(): Iterable<string> {

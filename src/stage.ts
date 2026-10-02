@@ -8,6 +8,7 @@ export type Completion = {
     goLabel?: string;
     textAt?: Point;
     goAt?: Point;
+    onPanel?: boolean;
 };
 
 export type StageEnv = {

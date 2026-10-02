@@ -1,30 +1,19 @@
 import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
 import { DecoyKind, generateDecoys } from "../decoys";
+import { FALL_MAX_MS, fallAnimation } from "../fall";
 import { newId } from "../host";
+import { currentTheme } from "../ink";
 import { seededRandom } from "../random";
-import { addElements, animateOutAndRemove, countElements } from "../scene";
+import { addElements, countElements, playThenRemove } from "../scene";
 import { textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
-import { XP } from "../theme";
+import { DECOY_COLORS } from "../theme";
 
 const DECOY_COUNT = 8000;
 const BOARD_ELEMENT_LIMIT = 10_000;
 const RESERVED_ELEMENTS = 60;
 const CLICK_TOAST_COOLDOWN_MS = 1500;
-const HINTS: readonly (readonly [number, string])[] = [
-    [40_000, "Hint: nobody said the rectangle already exists."],
-    [80_000, "Hint: look at your toolbar."],
-];
-
-const KIND_NAMES: Record<DecoyKind, string> = {
-    circle: "a circle",
-    diamond: "a diamond",
-    line: "a line",
-    arrow: "an arrow",
-    squiggle: "a squiggle",
-    glyph: "a text character",
-    "box-glyph": "a text character that looks like a rectangle. It is not a rectangle",
-};
+const HINT_AFTER_MS = 60_000;
 
 export class FindRectStage implements Stage {
     readonly id = "find-rect" as const;
@@ -33,32 +22,21 @@ export class FindRectStage implements Stage {
     private decoyKinds = new Map<string, DecoyKind>();
     private solved = false;
     private lastClickToastAt = 0;
-    private hintTimers: ReturnType<typeof setTimeout>[] = [];
+    private hintTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(private readonly env: StageEnv) {}
 
     async build(): Promise<void> {
         const { x, y, width, height } = this.env.region;
-        const title = [
-            textLine({
-                stage: this.id,
-                role: "title",
-                x: x + 40,
-                y: y + 20,
-                text: "Challenge 2 of 4 - Find the rectangle and click on it.",
-                fontSize: 46,
-                color: this.env.error ? XP.closeRed : XP.titleNavy,
-            }),
-            textLine({
-                stage: this.id,
-                role: "subtitle",
-                x: x + 40,
-                y: y + 88,
-                text: "There are 8,000 things in here. One of them is a rectangle. Probably.",
-                fontSize: 26,
-                color: XP.taskbarBlue,
-            }),
-        ];
+        const title = textLine({
+            stage: this.id,
+            role: "title",
+            x: x + 40,
+            y: y + 40,
+            text: "Challenge 2 of 4: Find the rectangle and click it.",
+            fontSize: 46,
+            ink: "title",
+        });
         const room = BOARD_ELEMENT_LIMIT - RESERVED_ELEMENTS - (await countElements());
         const count = Math.max(0, Math.min(DECOY_COUNT, room));
         const decoys = generateDecoys(
@@ -66,33 +44,27 @@ export class FindRectStage implements Stage {
             { x: x + 20, y: y + 150, width: width - 60, height: height - 190 },
             seededRandom(Date.now()),
             this.id,
-            newId
+            newId,
+            DECOY_COLORS[currentTheme()]
         );
         for (const d of decoys) this.decoyKinds.set(d.element.drawdyElementId, d.kind);
-        const elements = [...title, ...decoys.map((d) => d.element)];
-        for (const e of elements) this.owned.add(e.drawdyElementId);
-        this.required = title.map((e) => e.drawdyElementId);
-        await addElements(title);
+        for (const e of [title, ...decoys.map((d) => d.element)]) this.owned.add(e.drawdyElementId);
+        this.required = [title.drawdyElementId];
+        await addElements([title]);
         const total = count.toLocaleString("en-US");
-        this.env.toast(`Spawning ${total} shapes...`, "info", 10_000);
+        this.env.toast(`Adding ${total} shapes...`, "info", 10_000);
         await addElements(
             decoys.map((d) => d.element),
-            (added) => this.env.toast(`Spawning shapes: ${added.toLocaleString("en-US")} / ${total}`, "info", 10_000)
+            (added) => this.env.toast(`Adding shapes: ${added.toLocaleString("en-US")} / ${total}`, "info", 10_000)
         );
         if (count < DECOY_COUNT) {
-            this.env.toast(
-                `This board is close to the ${BOARD_ELEMENT_LIMIT.toLocaleString("en-US")} element limit, so only ${total} shapes fit. Find the rectangle and click on it.`,
-                "info",
-                7000
-            );
+            this.env.toast(`This board is almost full, so only ${total} shapes fit.`, "info", 6000);
         } else {
-            this.env.toast("Find the rectangle and click on it.", "info");
+            this.env.toast("Find the rectangle.", "info");
         }
-        this.hintTimers = HINTS.map(([delay, text]) =>
-            setTimeout(() => {
-                if (!this.solved && this.env.isCurrent()) this.env.toast(text, "info", 6000);
-            }, delay)
-        );
+        this.hintTimer = setTimeout(() => {
+            if (!this.solved && this.env.isCurrent()) this.env.toast("Hint: you can draw one.", "info", 6000);
+        }, HINT_AFTER_MS);
     }
 
     requiredIds(): Iterable<string> {
@@ -106,9 +78,7 @@ export class FindRectStage implements Stage {
     handle(event: DriverSubscriptionEvent): void {
         if (this.solved) return;
         if (event.type === "subscription:scene:elements-added") {
-            const drawn = event.body.drawdyElements.find(
-                (e) => !this.owned.has(e.id) && e.componentType === "rect"
-            );
+            const drawn = event.body.drawdyElements.find((e) => !this.owned.has(e.id) && e.componentType === "rect");
             if (drawn) this.solve(drawn.id);
             return;
         }
@@ -121,23 +91,24 @@ export class FindRectStage implements Stage {
         const now = Date.now();
         if (now - this.lastClickToastAt < CLICK_TOAST_COOLDOWN_MS) return;
         this.lastClickToastAt = now;
-        this.env.toast(`That is ${KIND_NAMES[kind]}. Keep looking.`, "bad");
+        this.env.toast(kind === "box-glyph" ? "That's text." : "Not a rectangle.", "bad");
     }
 
     private solve(rectId: string): void {
         this.solved = true;
         this.owned.add(rectId);
-        this.env.toast("You found it. You also made it, but that counts.", "good", 5000);
+        this.env.toast("Found it.", "good", 4000);
         const decoyIds = [...this.decoyKinds.keys()];
         for (const id of decoyIds) this.owned.delete(id);
         this.decoyKinds.clear();
-        void animateOutAndRemove(decoyIds, 900).then(() =>
-            this.env.complete({ lines: ["Found the rectangle.", "It was the one you drew."] })
+        const random = seededRandom(Date.now());
+        void playThenRemove(decoyIds, () => fallAnimation(random), FALL_MAX_MS).then(() =>
+            this.env.complete({ lines: ["Found the rectangle.", "You drew it."] })
         );
     }
 
     async dispose(): Promise<void> {
-        for (const timer of this.hintTimers) clearTimeout(timer);
-        this.hintTimers = [];
+        if (this.hintTimer) clearTimeout(this.hintTimer);
+        this.hintTimer = null;
     }
 }

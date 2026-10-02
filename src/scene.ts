@@ -6,6 +6,8 @@ import type {
 } from "@drawdy/driver-protocol";
 import { Rect, expandRect, rectCenter, rectsIntersect, unionRect } from "./geometry";
 import { send, trySend } from "./host";
+import { forgetInk, inkUpdates, setTheme } from "./ink";
+import { BUTTON, Theme } from "./theme";
 import { StageId, readTag } from "./scene-kit";
 import { XP } from "./theme";
 
@@ -50,7 +52,15 @@ export async function removeElements(ids: readonly string[]): Promise<void> {
         type: "command:scene:remove-drawdy-elements",
         req: { drawdyElementIds: [...ids] },
     });
-    for (const id of ids) roleById.delete(id);
+    for (const id of ids) {
+        roleById.delete(id);
+        forgetInk(id);
+    }
+}
+
+export async function applyTheme(next: Theme): Promise<void> {
+    if (!setTheme(next)) return;
+    await updateElements(inkUpdates());
 }
 
 export async function updateElements(
@@ -95,13 +105,19 @@ export async function restartAnimation(
     );
 }
 
-export async function animateOutAndRemove(ids: readonly string[], durationMs = 800): Promise<void> {
+export async function playThenRemove(
+    ids: readonly string[],
+    animationFor: (index: number) => LocalAnimation,
+    durationMs: number
+): Promise<void> {
     if (ids.length === 0) return;
-    await restartAnimation(
-        ids.map((drawdyElementId, i) => ({ drawdyElementId, localAnimation: fadeOutAnimation(i, durationMs) }))
-    );
+    await restartAnimation(ids.map((drawdyElementId, i) => ({ drawdyElementId, localAnimation: animationFor(i) })));
     await new Promise((resolve) => setTimeout(resolve, durationMs + 50));
     await removeElements(ids);
+}
+
+export async function animateOutAndRemove(ids: readonly string[], durationMs = 800): Promise<void> {
+    await playThenRemove(ids, (i) => fadeOutAnimation(i, durationMs), durationMs);
 }
 
 export async function elementRects(ids: readonly string[]): Promise<Map<string, Rect>> {
@@ -196,7 +212,7 @@ export type ToastTone = "info" | "good" | "bad";
 const TOAST_TITLES: Record<ToastTone, { title: string; color: string }> = {
     info: { title: "Stupid Hackathon X", color: XP.titleNavy },
     good: { title: "Nice.", color: XP.deepGrass },
-    bad: { title: "Nope.", color: XP.closeRed },
+    bad: { title: "Nope.", color: BUTTON.close },
 };
 
 export async function toast(text: string, tone: ToastTone = "info", durationMs = 3200): Promise<void> {

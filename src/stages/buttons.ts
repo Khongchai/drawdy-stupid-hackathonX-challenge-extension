@@ -1,19 +1,12 @@
 import type { DriverSubscriptionEvent, LocalAnimation } from "@drawdy/driver-protocol";
-import { overlapRatio } from "../geometry";
-import { addElements, elementRects, restartAnimation, updateElements } from "../scene";
-import { PushButton, pushButton, textBlock, xpWindow } from "../scene-kit";
+import { Point, distance } from "../geometry";
+import { subscribe, unsubscribe } from "../host";
+import { addElements, restartAnimation, updateElements } from "../scene";
+import { PushButton, pushButton, textLine, xpWindow } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
-import { XP } from "../theme";
+import { BUTTON, PANEL_INK, XP } from "../theme";
 
-const REQUIRED_OVERLAP = 0.3;
-const CHECK_DEBOUNCE_MS = 120;
-
-const ONE_BUTTON_REPLIES = [
-    "That was one button. The challenge says two.",
-    "Still one button. At the same time, please.",
-    "One click, one button. Humans only have one mouse pointer. Hmm.",
-    "Have you tried being two people?",
-];
+const DRAG_SLOP_PX = 6;
 
 function pressAnimation(): LocalAnimation {
     return {
@@ -28,9 +21,9 @@ export class ButtonsStage implements Stage {
     private required: string[] = [];
     private first: PushButton | null = null;
     private second: PushButton | null = null;
-    private presses = 0;
+    private pressedAt: Point | null = null;
     private solved = false;
-    private checkTimer: ReturnType<typeof setTimeout> | null = null;
+    private subscriptions: (string | null)[] = [];
 
     constructor(private readonly env: StageEnv) {}
 
@@ -43,16 +36,16 @@ export class ButtonsStage implements Stage {
             y: y + 20,
             width: width - 80,
             height: height - 40,
-            title: "Challenge 1 of 4 - Buttons.exe",
+            title: "Challenge 1 of 4",
         });
-        const instructions = textBlock({
+        const instructions = textLine({
             stage: this.id,
             role: "instructions",
             x: x + 100,
-            y: y + 110,
-            lines: ["Click both buttons at the same time.", "Both of them. At the same time."],
-            fontSize: 40,
-            color: XP.titleNavy,
+            y: y + 120,
+            text: "Click both buttons at the same time.",
+            fontSize: 44,
+            color: PANEL_INK.title,
         });
         this.first = pushButton({
             stage: this.id,
@@ -61,9 +54,9 @@ export class ButtonsStage implements Stage {
             y: y + 400,
             width: 320,
             height: 120,
-            label: "Click me",
-            face: XP.taskbarBlue,
-            edge: XP.titleNavy,
+            label: "Button 1",
+            face: BUTTON.blue.face,
+            edge: BUTTON.blue.edge,
             textColor: XP.white,
         });
         this.second = pushButton({
@@ -73,21 +66,22 @@ export class ButtonsStage implements Stage {
             y: y + 640,
             width: 320,
             height: 120,
-            label: "Click me too",
-            face: XP.goldfish,
-            edge: "#b35a00",
+            label: "Button 2",
+            face: BUTTON.orange.face,
+            edge: BUTTON.orange.edge,
             textColor: XP.white,
         });
-        const elements = [
-            ...window.elements,
-            ...instructions,
-            ...this.first.elements,
-            ...this.second.elements,
-        ];
+        const elements = [...window.elements, instructions, ...this.first.elements, ...this.second.elements];
         this.owned = elements.map((e) => e.drawdyElementId);
-        this.required = [...this.first.ids, ...this.second.ids, ...instructions.map((e) => e.drawdyElementId)];
+        this.required = [...this.first.ids, ...this.second.ids, instructions.drawdyElementId];
         await addElements(elements);
         await updateElements(window.ids.map((id) => ({ drawdyElementId: id, properties: { locked: true } })));
+        this.subscriptions = [
+            await subscribe({
+                type: "subscription:scene:pointer",
+                req: { elementIds: [...this.first.ids, ...this.second.ids] },
+            }),
+        ];
     }
 
     requiredIds(): Iterable<string> {
@@ -98,24 +92,18 @@ export class ButtonsStage implements Stage {
         return this.owned;
     }
 
-    private buttonIds(): Set<string> {
-        return new Set([...(this.first?.ids ?? []), ...(this.second?.ids ?? [])]);
-    }
-
     handle(event: DriverSubscriptionEvent): void {
         if (this.solved || !this.first || !this.second) return;
-        switch (event.type) {
-            case "subscription:scene:click":
-                this.onClick(event.body.drawdyElementIds);
-                return;
-            case "subscription:scene:drawdy-elements-dragged":
-                if (event.body.type === "dragEnd") this.scheduleCheck();
-                return;
-            case "subscription:scene:elements-updated": {
-                const ids = this.buttonIds();
-                if (event.body.drawdyElements.some((e) => ids.has(e.id))) this.scheduleCheck();
-                return;
-            }
+        if (event.type === "subscription:scene:pointer" && event.body.type === "down") {
+            this.pressedAt = event.body.cursor.domSpace;
+            return;
+        }
+        if (event.type === "subscription:scene:click") {
+            const releasedAt = event.body.cursor.domSpace;
+            const pressedAt = this.pressedAt;
+            this.pressedAt = null;
+            if (pressedAt && distance(pressedAt, releasedAt) > DRAG_SLOP_PX) return;
+            this.onClick(event.body.drawdyElementIds);
         }
     }
 
@@ -126,39 +114,25 @@ export class ButtonsStage implements Stage {
         const hitSecond = clicked.some((id) => second.ids.includes(id));
         if (!hitFirst && !hitSecond) return;
         if (hitFirst && hitSecond) {
-            this.scheduleCheck();
+            void this.solve();
             return;
         }
         const face = hitFirst ? first.faceId : second.faceId;
         void restartAnimation([{ drawdyElementId: face, localAnimation: pressAnimation() }]);
-        this.env.toast(ONE_BUTTON_REPLIES[Math.min(this.presses, ONE_BUTTON_REPLIES.length - 1)], "bad");
-        this.presses++;
+        this.env.toast("Only one button.", "bad");
     }
 
-    private scheduleCheck(): void {
-        if (this.checkTimer) clearTimeout(this.checkTimer);
-        this.checkTimer = setTimeout(() => {
-            this.checkTimer = null;
-            void this.checkOverlap();
-        }, CHECK_DEBOUNCE_MS);
-    }
-
-    private async checkOverlap(): Promise<void> {
-        if (this.solved || !this.first || !this.second || !this.env.isCurrent()) return;
-        const rects = await elementRects([this.first.faceId, this.second.faceId]);
-        const a = rects.get(this.first.faceId);
-        const b = rects.get(this.second.faceId);
-        if (!a || !b || overlapRatio(a, b) < REQUIRED_OVERLAP) return;
+    private async solve(): Promise<void> {
         this.solved = true;
         await restartAnimation(
-            [this.first.faceId, this.second.faceId].map((id) => ({ drawdyElementId: id, localAnimation: pressAnimation() }))
+            [this.first!.faceId, this.second!.faceId].map((id) => ({ drawdyElementId: id, localAnimation: pressAnimation() }))
         );
-        this.env.toast("Both buttons are pressed at the same time.", "good");
-        this.env.complete({ lines: ["Two buttons, one click.", "Technically correct. The best kind of correct."] });
+        this.env.toast("Both buttons.", "good");
+        this.env.complete({ lines: ["Both buttons at the same time."], onPanel: true });
     }
 
     async dispose(): Promise<void> {
-        if (this.checkTimer) clearTimeout(this.checkTimer);
-        this.checkTimer = null;
+        for (const id of this.subscriptions) await unsubscribe(id);
+        this.subscriptions = [];
     }
 }

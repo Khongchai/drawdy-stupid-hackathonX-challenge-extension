@@ -30,12 +30,12 @@ export type LaserVerdict =
     | { kind: "stopped-inside" };
 
 export const MAZE_MOTION = {
-    driftX: 46,
-    driftY: 30,
-    driftPeriodXMs: 19000,
-    driftPeriodYMs: 26000,
-    wobblePx: 5,
-    wobblePeriodMs: 2800,
+    driftX: 60,
+    driftY: 40,
+    driftPeriodXMs: 17000,
+    driftPeriodYMs: 23000,
+    wobblePx: 7,
+    wobblePeriodMs: 2400,
 };
 
 const key = (a: Cell, b: Cell) => {

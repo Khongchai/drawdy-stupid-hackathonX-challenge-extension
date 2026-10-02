@@ -2,7 +2,7 @@ import type { DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/drive
 import { addElements } from "../scene";
 import { pushButton, textBlock, textLine, xpWindow } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
-import { XP } from "../theme";
+import { BUTTON, PANEL_INK, XP } from "../theme";
 
 const EVENT_FACTS: readonly (readonly [string, string])[] = [
     ["WHEN", "10-11 October 2026, Saturday to Sunday, overnight"],
@@ -58,7 +58,7 @@ export class IntroStage implements Stage {
                     y: cursor,
                     text: `ERROR  ${this.env.error}`,
                     fontSize: 24,
-                    color: XP.closeRed,
+                    color: PANEL_INK.danger,
                 })
             );
             cursor += 56;
@@ -71,16 +71,16 @@ export class IntroStage implements Stage {
                 y: cursor,
                 text: "STUPID HACKATHON X",
                 fontSize: 56,
-                color: XP.titleNavy,
+                color: PANEL_INK.title,
             }),
             textLine({
                 stage: this.id,
                 role: "subtitle",
                 x: left + 40,
                 y: cursor + 76,
-                text: "the 10th Stupid Hackathon in Thailand. No competition, no business value, whatsoever.",
+                text: "The 10th Stupid Hackathon in Thailand. No business value allowed.",
                 fontSize: 24,
-                color: XP.taskbarBlue,
+                color: PANEL_INK.accent,
             })
         );
         cursor += 140;
@@ -88,11 +88,11 @@ export class IntroStage implements Stage {
             const rowY = cursor + i * 40;
             if (label) {
                 elements.push(
-                    textLine({ stage: this.id, role: "fact-label", x: left + 40, y: rowY, text: label, fontSize: 24, color: XP.deepGrass })
+                    textLine({ stage: this.id, role: "fact-label", x: left + 40, y: rowY, text: label, fontSize: 24, color: PANEL_INK.success })
                 );
             }
             elements.push(
-                textLine({ stage: this.id, role: "fact", x: left + 190, y: rowY, text: value, fontSize: 24, color: XP.ink })
+                textLine({ stage: this.id, role: "fact", x: left + 190, y: rowY, text: value, fontSize: 24, color: PANEL_INK.body })
             );
         });
         cursor += EVENT_FACTS.length * 40 + 40;
@@ -102,12 +102,9 @@ export class IntroStage implements Stage {
                 role: "rules",
                 x: left + 40,
                 y: cursor,
-                lines: [
-                    "This board now has four challenges. They are all stupid.",
-                    "Break one of them (delete its stuff) and you start over from here.",
-                ],
+                lines: ["4 challenges. All of them are stupid.", "Delete something a challenge needs and you start over."],
                 fontSize: 24,
-                color: XP.ink,
+                color: PANEL_INK.body,
             })
         );
         const askY = top + 860 - 170;
@@ -119,7 +116,7 @@ export class IntroStage implements Stage {
                 y: askY + 30,
                 text: "R u ready ?",
                 fontSize: 52,
-                color: XP.titleNavy,
+                color: PANEL_INK.title,
             })
         );
         const yes = pushButton({
@@ -130,8 +127,8 @@ export class IntroStage implements Stage {
             width: 240,
             height: 92,
             label: "Yes",
-            face: XP.startGreen,
-            edge: XP.deepGrass,
+            face: BUTTON.go.face,
+            edge: BUTTON.go.edge,
             textColor: XP.white,
             fontSize: 32,
         });
@@ -143,8 +140,8 @@ export class IntroStage implements Stage {
             width: 240,
             height: 92,
             label: "No",
-            face: XP.winGrey,
-            edge: "#8f8b80",
+            face: BUTTON.grey.face,
+            edge: BUTTON.grey.edge,
             textColor: XP.ink,
             fontSize: 32,
         });
@@ -155,7 +152,7 @@ export class IntroStage implements Stage {
         this.required = [...window.ids, ...yes.ids];
         await addElements(elements);
         if (this.env.error) this.env.toast(this.env.error, "bad", 6000);
-        else this.env.toast("Welcome to Stupid Hackathon X. Click Yes when you are ready.");
+        else this.env.toast("Click Yes to start.");
     }
 
     requiredIds(): Iterable<string> {
@@ -174,11 +171,7 @@ export class IntroStage implements Stage {
             return;
         }
         if (ids.some((id) => this.noIds.has(id))) {
-            const replies = [
-                "Wrong answer.",
-                "Still wrong. There is a green button.",
-                "No is not an option. It is on the poster but it is not an option.",
-            ];
+            const replies = ["Wrong answer.", "Still wrong.", "Click Yes."];
             this.env.toast(replies[Math.min(this.noClicks++, replies.length - 1)], "bad");
         }
     }

@@ -14,7 +14,7 @@ import {
 import { StageId, roundButton, textBlock } from "./scene-kit";
 import { Completion, Stage, StageEnv } from "./stage";
 import { createStage } from "./stages";
-import { XP } from "./theme";
+import { PANEL_INK } from "./theme";
 
 const ORDER: readonly StageId[] = ["intro", "buttons", "find-rect", "diny", "maze", "finale"];
 const REGION_SIZE = { width: 1600, height: 1000 };
@@ -136,7 +136,7 @@ export class Game {
             y: textAt.y,
             lines: result.lines,
             fontSize: 34,
-            color: XP.deepGrass,
+            ...(result.onPanel ? { color: PANEL_INK.success } : { ink: "success" as const }),
         });
         const go = roundButton({
             stage: this.stage?.id ?? "intro",

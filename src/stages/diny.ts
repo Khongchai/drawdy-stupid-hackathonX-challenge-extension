@@ -1,16 +1,20 @@
 import type { DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
-import { DINY_BASE64, DINY_MIME } from "../assets/diny";
 import { chooseEscape, insetRect, randomPointIn } from "../flee";
 import { Point, Rect, distance, distanceToSegment } from "../geometry";
 import { newId, subscribe, trySend, unsubscribe } from "../host";
+import { currentTheme } from "../ink";
 import { beginPreview, endPreview, startPreviewLoop } from "../preview-loop";
 import { seededRandom } from "../random";
 import { addElements, updateElements } from "../scene";
 import { tag, textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
-import { XP } from "../theme";
+import { YARD } from "../theme";
 
-const DINY_SIZE = 150;
+const DINY_WIDTH = 181;
+const DINY_HEIGHT = 161;
+const DINY_CLOSED_URL = "https://cdn.drawdy.io/stupid-hackathonx/diny-mouth-close.png";
+const DINY_OPEN_URL = "https://cdn.drawdy.io/stupid-hackathonx/diny-mouth-open.png";
+const PARKED_OFFSET = 1_000_000;
 const GIVE_UP_MS = 30_000;
 const FLEE_SCREEN_PX = 240;
 const FLEE_TAU_S = 0.045;
@@ -18,18 +22,12 @@ const WANDER_TAU_S = 0.9;
 const FLEE_HOLD_MS = 450;
 const HEARTBREAK = "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ";
 
-function dinyBlob(): Blob {
-    const binary = atob(DINY_BASE64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new Blob([bytes], { type: DINY_MIME });
-}
-
 export class DinyStage implements Stage {
     readonly id = "diny" as const;
     private owned: string[] = [];
     private required: string[] = [];
-    private dinyId = "";
+    private closedId = "";
+    private openId = "";
     private rest: Point = { x: 0, y: 0 };
     private position: Point = { x: 0, y: 0 };
     private target: Point = { x: 0, y: 0 };
@@ -50,28 +48,20 @@ export class DinyStage implements Stage {
     async build(): Promise<void> {
         const { x, y, width, height } = this.env.region;
         const yard: Rect = { x: x + 40, y: y + 150, width: width - 80, height: height - 190 };
-        this.roam = insetRect(yard, DINY_SIZE / 2 + 12);
+        this.roam = insetRect(yard, Math.max(DINY_WIDTH, DINY_HEIGHT) / 2 + 12);
         this.rest = { x: yard.x + yard.width / 2, y: yard.y + yard.height / 2 };
         this.position = { ...this.rest };
         this.target = { ...this.rest };
-        this.dinyId = newId();
+        this.closedId = newId();
+        this.openId = newId();
         const title = textLine({
             stage: this.id,
             role: "title",
             x: x + 40,
-            y: y + 20,
-            text: "Challenge 3 of 4 - Click on Diny.",
+            y: y + 40,
+            text: "Challenge 3 of 4: Click Diny.",
             fontSize: 46,
-            color: XP.titleNavy,
-        });
-        const subtitle = textLine({
-            stage: this.id,
-            role: "subtitle",
-            x: x + 40,
-            y: y + 88,
-            text: "She is shy. She does not like your cursor.",
-            fontSize: 26,
-            color: XP.taskbarBlue,
+            ink: "title",
         });
         const fence: DrawdyElementSchema = {
             type: "shape",
@@ -81,8 +71,8 @@ export class DinyStage implements Stage {
             y: yard.y,
             width: yard.width,
             height: yard.height,
-            strokeColor: XP.blissGreen,
-            fillColor: XP.paleSky,
+            strokeColor: YARD[currentTheme()].stroke,
+            fillColor: YARD[currentTheme()].fill,
             strokeWidth: 4,
             strokeDash: "dashed",
             cornerRadius: 28,
@@ -90,37 +80,42 @@ export class DinyStage implements Stage {
             fillStyle: "solid",
             meta: tag(this.id, "yard"),
         };
-        const diny: DrawdyElementSchema = {
+        const dinyImage = (drawdyElementId: string, url: string, role: string): DrawdyElementSchema => ({
             type: "image",
-            drawdyElementId: this.dinyId,
-            x: this.rest.x - DINY_SIZE / 2,
-            y: this.rest.y - DINY_SIZE / 2,
-            width: DINY_SIZE,
-            height: DINY_SIZE,
-            blob: dinyBlob(),
-            meta: tag(this.id, "diny"),
-        };
-        const elements = [title, subtitle, fence, diny];
+            drawdyElementId,
+            x: this.rest.x - DINY_WIDTH / 2,
+            y: this.rest.y - DINY_HEIGHT / 2,
+            width: DINY_WIDTH,
+            height: DINY_HEIGHT,
+            url,
+            meta: tag(this.id, role),
+        });
+        const elements = [
+            title,
+            fence,
+            dinyImage(this.openId, DINY_OPEN_URL, "diny-mouth-open"),
+            dinyImage(this.closedId, DINY_CLOSED_URL, "diny-mouth-closed"),
+        ];
         this.owned = elements.map((e) => e.drawdyElementId);
-        this.required = [title.drawdyElementId, fence.drawdyElementId, this.dinyId];
+        this.required = [title.drawdyElementId, fence.drawdyElementId, this.closedId, this.openId];
         await addElements(elements);
         await updateElements(
-            [fence.drawdyElementId, this.dinyId].map((id) => ({ drawdyElementId: id, properties: { locked: true } }))
+            [fence.drawdyElementId, this.closedId, this.openId].map((id) => ({ drawdyElementId: id, properties: { locked: true } }))
         );
         const camera = await trySend({ type: "command:camera:get-info" });
         this.zoom = camera?.zoom ?? 1;
         this.subscriptions = [
             await subscribe({ type: "subscription:scene:pointer-position" }),
-            await subscribe({ type: "subscription:scene:pointer", req: { elementIds: [this.dinyId] } }),
+            await subscribe({ type: "subscription:scene:pointer", req: { elementIds: [this.closedId, this.openId] } }),
             await subscribe({ type: "subscription:camera:moved-debounced" }),
         ];
-        const began = await beginPreview([this.dinyId]);
-        this.previewing = began.has(this.dinyId);
-        if (!this.previewing) this.env.toast("Diny could not start moving. She is just standing there.", "bad");
+        const began = await beginPreview([this.closedId, this.openId]);
+        this.previewing = began.has(this.closedId) && began.has(this.openId);
+        if (!this.previewing) this.env.toast("Diny can't move. Sorry.", "bad");
         this.lastFrameAt = performance.now();
         this.stopLoop = startPreviewLoop((now) => this.frame(now));
         this.giveUpTimer = setTimeout(() => this.release(), GIVE_UP_MS);
-        this.env.toast("Click on Diny.");
+        this.env.toast("Click Diny.");
     }
 
     requiredIds(): Iterable<string> {
@@ -151,16 +146,12 @@ export class DinyStage implements Stage {
         };
         if (!this.previewing) return [];
         const sway = this.outcome === "caught" ? now * 0.012 : 0.14 * Math.sin(now * 0.005);
+        const mouthOpen = fleeing || this.outcome === "caught";
+        const here = { x: this.position.x - this.rest.x, y: this.position.y - this.rest.y, scale: 1, rotation: sway };
+        const parked = { x: PARKED_OFFSET, y: PARKED_OFFSET, scale: 1, rotation: 0 };
         return [
-            {
-                drawdyElementId: this.dinyId,
-                transform: {
-                    x: this.position.x - this.rest.x,
-                    y: this.position.y - this.rest.y,
-                    scale: 1,
-                    rotation: sway,
-                },
-            },
+            { drawdyElementId: this.openId, transform: mouthOpen ? here : parked },
+            { drawdyElementId: this.closedId, transform: mouthOpen ? parked : here },
         ];
     }
 
@@ -186,12 +177,16 @@ export class DinyStage implements Stage {
                 this.zoom = event.body.zoom;
                 return;
             case "subscription:scene:pointer":
-                if (event.body.type === "down" && event.body.drawdyElementIds.includes(this.dinyId)) this.catch();
+                if (event.body.type === "down" && this.isDiny(event.body.drawdyElementIds)) this.catch();
                 return;
             case "subscription:scene:click":
-                if (event.body.drawdyElementIds.includes(this.dinyId)) this.catch();
+                if (this.isDiny(event.body.drawdyElementIds)) this.catch();
                 return;
         }
+    }
+
+    private isDiny(ids: readonly string[]): boolean {
+        return ids.includes(this.closedId) || ids.includes(this.openId);
     }
 
     private catch(): void {
@@ -200,8 +195,8 @@ export class DinyStage implements Stage {
         this.outcome = "caught";
         this.target = { ...this.position };
         if (this.giveUpTimer) clearTimeout(this.giveUpTimer);
-        this.env.toast("You caught Diny. With a touch screen or devtools, we assume. Cheater.", "good", 5000);
-        if (!wasReleased) this.env.complete({ lines: ["You caught Diny.", "She did not see that coming."] });
+        this.env.toast("You caught Diny.", "good", 5000);
+        if (!wasReleased) this.env.complete({ lines: ["You caught Diny."] });
     }
 
     private release(): void {
@@ -215,12 +210,12 @@ export class DinyStage implements Stage {
             y: y + height - 300,
             text: HEARTBREAK,
             fontSize: 44,
-            color: XP.closeRed,
+            ink: "danger",
         });
         this.owned.push(line.drawdyElementId);
         void addElements([line]).then(() => {
             this.env.toast(HEARTBREAK, "info", 8000);
-            this.env.complete({ lines: ["You did not catch Diny.", "That is fine. Let her go."] });
+            this.env.complete({ lines: ["You didn't catch Diny. Let her go."] });
         });
     }
 

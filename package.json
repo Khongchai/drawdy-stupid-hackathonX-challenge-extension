@@ -9,8 +9,7 @@
         "dev": "vite",
         "build": "node build.ts",
         "typecheck": "tsc --noEmit",
-        "test": "vitest --run",
-        "embed-diny": "node scripts/embed-diny.mjs"
+        "test": "vitest --run"
     },
     "devDependencies": {
         "@drawdy/driver-protocol": "latest",

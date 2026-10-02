@@ -1,7 +1,8 @@
 import type { DrawdyElementSchema } from "@drawdy/driver-protocol";
 import { Point } from "./geometry";
 import { newId } from "./host";
-import { XP } from "./theme";
+import { ink, trackInk } from "./ink";
+import { BUTTON, InkToken, XP } from "./theme";
 
 export type StageId = "intro" | "buttons" | "find-rect" | "diny" | "maze" | "finale";
 
@@ -21,57 +22,52 @@ export function readTag(meta: Record<string, unknown> | undefined): ElementTag |
 
 export type Built = { elements: DrawdyElementSchema[]; ids: string[] };
 
-export function textLine(opts: {
-    stage: StageId;
-    role: string;
-    x: number;
-    y: number;
-    text: string;
-    fontSize: number;
-    color: string;
-    width?: number;
-    textAlign?: "left" | "center" | "right";
-}): DrawdyElementSchema {
+export type TextColor = { color: string; ink?: never } | { ink: InkToken; color?: never };
+
+export function textLine(
+    opts: {
+        stage: StageId;
+        role: string;
+        x: number;
+        y: number;
+        text: string;
+        fontSize: number;
+        width?: number;
+        textAlign?: "left" | "center" | "right";
+    } & TextColor
+): DrawdyElementSchema {
+    const drawdyElementId = newId();
+    if (opts.ink) trackInk(drawdyElementId, opts.ink);
     return {
         type: "text",
-        drawdyElementId: newId(),
+        drawdyElementId,
         x: opts.x,
         y: opts.y,
         width: opts.width,
         text: opts.text,
         fontSize: opts.fontSize,
-        color: opts.color,
+        color: opts.ink ? ink(opts.ink) : opts.color!,
         textAlign: opts.textAlign,
         meta: tag(opts.stage, opts.role),
     };
 }
 
-export function textBlock(opts: {
-    stage: StageId;
-    role: string;
-    x: number;
-    y: number;
-    lines: readonly string[];
-    fontSize: number;
-    color: string;
-    lineHeight?: number;
-    width?: number;
-    textAlign?: "left" | "center" | "right";
-}): DrawdyElementSchema[] {
-    const step = opts.lineHeight ?? opts.fontSize * 1.45;
-    return opts.lines.map((text, i) =>
-        textLine({
-            stage: opts.stage,
-            role: opts.role,
-            x: opts.x,
-            y: opts.y + i * step,
-            text,
-            fontSize: opts.fontSize,
-            color: opts.color,
-            width: opts.width,
-            textAlign: opts.textAlign,
-        })
-    );
+export function textBlock(
+    opts: {
+        stage: StageId;
+        role: string;
+        x: number;
+        y: number;
+        lines: readonly string[];
+        fontSize: number;
+        lineHeight?: number;
+        width?: number;
+        textAlign?: "left" | "center" | "right";
+    } & TextColor
+): DrawdyElementSchema[] {
+    const { lines, lineHeight, ...rest } = opts;
+    const step = lineHeight ?? opts.fontSize * 1.45;
+    return lines.map((text, i) => textLine({ ...rest, y: opts.y + i * step, text } as Parameters<typeof textLine>[0]));
 }
 
 export function xpWindow(opts: {
@@ -130,7 +126,7 @@ export function xpWindow(opts: {
         width: 30,
         height: 30,
         strokeColor: XP.white,
-        fillColor: XP.closeRed,
+        fillColor: BUTTON.close,
         strokeWidth: 2,
         cornerRadius: 5,
         roughness: 0,
@@ -219,7 +215,7 @@ export function roundButton(opts: {
 }): PushButton {
     const groupId = newId();
     const size = opts.radius * 2;
-    const edge = opts.edge ?? XP.deepGrass;
+    const edge = opts.edge ?? BUTTON.go.edge;
     const base: DrawdyElementSchema = {
         type: "shape",
         componentType: "circle",
@@ -245,7 +241,7 @@ export function roundButton(opts: {
         width: size,
         height: size,
         strokeColor: edge,
-        fillColor: opts.face ?? XP.startGreen,
+        fillColor: opts.face ?? BUTTON.go.face,
         strokeWidth: 3,
         roughness: 0,
         fillStyle: "solid",

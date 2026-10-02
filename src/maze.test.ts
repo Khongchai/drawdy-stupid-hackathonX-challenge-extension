@@ -7,6 +7,7 @@ import {
     exitMarkerPoint,
     generateMaze,
     judgeLaserRun,
+    mazeDriftAt,
 } from "./maze";
 import { seededRandom } from "./random";
 
@@ -16,6 +17,8 @@ const wallTolerance = 8;
 const origin = { x: 1000, y: -400 };
 const stepMs = 16;
 const seeds = [1, 2, 3, 42, 1337];
+const harderCellsPerSide = 7;
+const harderCellSize = 112;
 const pastExitDistance = 80;
 
 function openNeighbourCells(maze: MazeLayout, cell: Cell): Cell[] {
@@ -61,8 +64,12 @@ function solveMazeIntoCellPath(maze: MazeLayout): Cell[] {
     return path;
 }
 
-function timePointsAtFixedSteps(points: { x: number; y: number }[]): TimedPoint[] {
-    return points.map((p, i) => ({ x: origin.x + p.x, y: origin.y + p.y, t: i * stepMs }));
+function timePointsAtFixedStepsFollowingDrift(points: { x: number; y: number }[]): TimedPoint[] {
+    return points.map((p, i) => {
+        const t = i * stepMs;
+        const drift = mazeDriftAt(t);
+        return { x: origin.x + p.x + drift.x, y: origin.y + p.y + drift.y, t };
+    });
 }
 
 function interpolateEvery(points: { x: number; y: number }[], spacing: number) {
@@ -87,12 +94,24 @@ describe("generateMaze", () => {
     });
 });
 
+describe("generateMaze at the challenge size", () => {
+    it.each(seeds)("connects the center of a 7 by 7 maze to an exit and accepts the corridor path (seed %i)", (seed) => {
+        const maze = generateMaze(harderCellsPerSide, harderCellSize, seededRandom(seed));
+        const cells = solveMazeIntoCellPath(maze);
+        expect(cells[cells.length - 1]).toEqual(maze.exit.cell);
+        const centers = cells.map((c) => cellCenter(maze, c));
+        centers.push(exitMarkerPoint(maze, pastExitDistance));
+        const path = timePointsAtFixedStepsFollowingDrift(interpolateEvery(centers, 10));
+        expect(judgeLaserRun(maze, origin, path, wallTolerance)).toEqual({ kind: "escaped" });
+    });
+});
+
 describe("judgeLaserRun", () => {
     it.each(seeds)("accepts a laser path that follows the corridor centers out of the exit (seed %i)", (seed) => {
         const maze = generateMaze(cellsPerSide, cellSize, seededRandom(seed));
         const centers = solveMazeIntoCellPath(maze).map((c) => cellCenter(maze, c));
         centers.push(exitMarkerPoint(maze, pastExitDistance));
-        const path = timePointsAtFixedSteps(interpolateEvery(centers, 10));
+        const path = timePointsAtFixedStepsFollowingDrift(interpolateEvery(centers, 10));
         expect(judgeLaserRun(maze, origin, path, wallTolerance)).toEqual({ kind: "escaped" });
     });
 
@@ -106,14 +125,14 @@ describe("judgeLaserRun", () => {
             left: { x: far, y: start.y },
             right: { x: -pastExitDistance, y: start.y },
         }[maze.exit.side];
-        const path = timePointsAtFixedSteps(interpolateEvery([start, target], 10));
+        const path = timePointsAtFixedStepsFollowingDrift(interpolateEvery([start, target], 10));
         expect(judgeLaserRun(maze, origin, path, wallTolerance).kind).toBe("hit-wall");
     });
 
     it("rejects a laser path that starts in a corner cell instead of the center", () => {
         const maze = generateMaze(cellsPerSide, cellSize, seededRandom(7));
         const corner = cellCenter(maze, { row: 0, col: 0 });
-        const path = timePointsAtFixedSteps([corner, { x: corner.x + 5, y: corner.y }]);
+        const path = timePointsAtFixedStepsFollowingDrift([corner, { x: corner.x + 5, y: corner.y }]);
         expect(judgeLaserRun(maze, origin, path, wallTolerance)).toEqual({
             kind: "started-outside-center",
         });
@@ -122,7 +141,7 @@ describe("judgeLaserRun", () => {
     it("reports a laser path that ends inside the maze without touching a wall as stopped inside", () => {
         const maze = generateMaze(cellsPerSide, cellSize, seededRandom(9));
         const start = cellCenter(maze, maze.start);
-        const path = timePointsAtFixedSteps([start, { x: start.x + 10, y: start.y + 10 }]);
+        const path = timePointsAtFixedStepsFollowingDrift([start, { x: start.x + 10, y: start.y + 10 }]);
         expect(judgeLaserRun(maze, origin, path, wallTolerance)).toEqual({ kind: "stopped-inside" });
     });
 });

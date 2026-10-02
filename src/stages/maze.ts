@@ -16,13 +16,14 @@ import { seededRandom } from "../random";
 import { addElements, updateElements } from "../scene";
 import { tag, textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
-import { XP } from "../theme";
+import { BUTTON } from "../theme";
+import { ink, trackInk } from "../ink";
 
-const CELLS = 5;
-const CELL_SIZE = 140;
+const CELLS = 7;
+const CELL_SIZE = 112;
 const WALL_WIDTH = 10;
 const WALL_TOLERANCE = WALL_WIDTH / 2 + 3;
-const START_RADIUS = 44;
+const START_RADIUS = 36;
 const LASER_TOOL = "laser-pointer";
 const MISSED_START_COOLDOWN_MS = 2500;
 const HIT_MARKER_MS = 1400;
@@ -53,35 +54,39 @@ export class MazeStage implements Stage {
         const maze = generateMaze(CELLS, CELL_SIZE, seededRandom(Date.now()));
         this.maze = maze;
         const side = CELLS * CELL_SIZE;
-        this.origin = { x: x + (width - side) / 2, y: y + 180 + (height - 180 - side) / 2 };
+        this.origin = { x: x + (width - side) / 2, y: y + 170 + (height - 170 - side) / 2 };
         const title = textLine({
             stage: this.id,
             role: "title",
             x: x + 40,
-            y: y + 20,
-            text: "Challenge 4 of 4 - อย่าชนขอบ",
+            y: y + 30,
+            text: "Challenge 4 of 4: อย่าชนขอบ",
             fontSize: 46,
-            color: XP.titleNavy,
+            ink: "title",
         });
         const subtitle = textLine({
             stage: this.id,
             role: "subtitle",
             x: x + 40,
-            y: y + 88,
-            text: "Pick the laser pointer. Press the green circle and drag out of the exit. Do not touch a wall.",
+            y: y + 96,
+            text: "Drag from the green circle to the exit. Don't touch the walls.",
             fontSize: 26,
-            color: XP.taskbarBlue,
+            ink: "accent",
         });
-        const walls: DrawdyElementSchema[] = maze.walls.map((wall) => ({
-            type: "line",
-            drawdyElementId: newId(),
-            from: [this.origin.x + wall.a.x, this.origin.y + wall.a.y],
-            to: [this.origin.x + wall.b.x, this.origin.y + wall.b.y],
-            color: XP.titleNavy,
-            strokeWidth: WALL_WIDTH,
-            roughness: 0,
-            meta: tag(this.id, "wall"),
-        }));
+        const walls: DrawdyElementSchema[] = maze.walls.map((wall) => {
+            const drawdyElementId = newId();
+            trackInk(drawdyElementId, "wall");
+            return {
+                type: "line",
+                drawdyElementId,
+                from: [this.origin.x + wall.a.x, this.origin.y + wall.a.y],
+                to: [this.origin.x + wall.b.x, this.origin.y + wall.b.y],
+                color: ink("wall"),
+                strokeWidth: WALL_WIDTH,
+                roughness: 0,
+                meta: tag(this.id, "wall"),
+            };
+        });
         const startLocal = cellCenter(maze, maze.start);
         const start: DrawdyElementSchema = {
             type: "shape",
@@ -91,27 +96,26 @@ export class MazeStage implements Stage {
             y: this.origin.y + startLocal.y - START_RADIUS,
             width: START_RADIUS * 2,
             height: START_RADIUS * 2,
-            strokeColor: XP.deepGrass,
-            fillColor: XP.startGreen,
+            strokeColor: BUTTON.go.edge,
+            fillColor: BUTTON.go.face,
             strokeWidth: 3,
             roughness: 0,
             fillStyle: "solid",
             text: "Start",
-            fontSize: 18,
-            textColor: XP.white,
+            fontSize: 15,
+            textColor: "#ffffff",
             meta: tag(this.id, "start"),
         };
         const exitPoint = exitMarkerPoint(maze, 70);
-        const exitLabel: DrawdyElementSchema = {
-            type: "text",
-            drawdyElementId: newId(),
+        const exitLabel = textLine({
+            stage: this.id,
+            role: "exit",
             x: this.origin.x + exitPoint.x - 34,
             y: this.origin.y + exitPoint.y - 16,
             text: "EXIT",
             fontSize: 28,
-            color: XP.goldfish,
-            meta: tag(this.id, "exit"),
-        };
+            ink: "warm",
+        });
         this.wallIds = walls.map((w) => w.drawdyElementId);
         this.startId = start.drawdyElementId;
         this.driftingIds = [start.drawdyElementId, exitLabel.drawdyElementId];
@@ -129,7 +133,7 @@ export class MazeStage implements Stage {
         const began = await beginPreview([...this.wallIds, ...this.driftingIds]);
         this.previewing = began.size > 0;
         this.stopLoop = startPreviewLoop((now) => this.frame(now));
-        this.env.toast("Pick the laser pointer tool, then drag from the green circle to the exit.", "info", 6000);
+        this.env.toast("Get out without touching a wall.", "info", 5000);
     }
 
     requiredIds(): Iterable<string> {
@@ -181,7 +185,7 @@ export class MazeStage implements Stage {
             run.laserConfirmed = value?.toolId === LASER_TOOL;
             if (!run.laserConfirmed) {
                 this.run = null;
-                this.env.toast("Use the laser pointer tool for this one. It is in the toolbar.", "bad");
+                this.env.toast("Wrong tool.", "bad");
             }
         });
     }
@@ -196,28 +200,28 @@ export class MazeStage implements Stage {
         if (verdict === "hit-wall") {
             this.run = null;
             void this.showHitMarker(at);
-            this.env.toast("You touched a wall. Release, then start again from the green circle.", "bad");
+            this.env.toast("You touched a wall.", "bad");
             return;
         }
         if (verdict === "escaped") {
             this.run = null;
             if (run.laserConfirmed === false) return;
             this.solved = true;
-            this.env.toast("Out of the maze without touching a wall.", "good", 5000);
-            this.env.complete({ lines: ["You did not touch a single wall.", "อย่าชนขอบ: passed."] });
+            this.env.toast("You got out.", "good", 5000);
+            this.env.complete({ lines: ["You got out without touching a wall."] });
         }
     }
 
     private onLaserReleased(): void {
         if (this.run) {
             this.run = null;
-            this.env.toast("You let go inside the maze. Start again from the green circle.", "bad");
+            this.env.toast("You let go too early.", "bad");
             return;
         }
         const now = Date.now();
         if (now - this.lastMissedStartToast < MISSED_START_COOLDOWN_MS) return;
         this.lastMissedStartToast = now;
-        this.env.toast("Start your laser on the green circle in the middle.", "info");
+        this.env.toast("Start on the green circle.", "info");
     }
 
     private async showHitMarker(at: Point): Promise<void> {
@@ -233,8 +237,8 @@ export class MazeStage implements Stage {
                         y: at.y - 22,
                         width: 44,
                         height: 44,
-                        strokeColor: XP.closeRed,
-                        fillColor: XP.closeRed,
+                        strokeColor: BUTTON.close,
+                        fillColor: BUTTON.close,
                         strokeWidth: 4,
                         roughness: 0,
                         fillStyle: "cross-hatch",

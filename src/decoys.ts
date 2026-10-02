@@ -2,7 +2,6 @@ import type { DrawdyElementSchema, FillStyle } from "@drawdy/driver-protocol";
 import { Rect } from "./geometry";
 import { Random, between, pick, weightedPick } from "./random";
 import { StageId, tag } from "./scene-kit";
-import { DECOY_COLORS } from "./theme";
 
 export type DecoyKind = "circle" | "diamond" | "line" | "arrow" | "squiggle" | "glyph" | "box-glyph";
 
@@ -27,9 +26,10 @@ function decoy(
     id: string,
     field: Rect,
     random: Random,
-    stage: StageId
+    stage: StageId,
+    colors: readonly string[]
 ): DrawdyElementSchema {
-    const color = pick(random, DECOY_COLORS);
+    const color = pick(random, colors);
     const x = between(random, field.x, field.x + field.width);
     const y = between(random, field.y, field.y + field.height);
     const meta = tag(stage, `decoy:${kind}`);
@@ -47,7 +47,7 @@ function decoy(
                 y,
                 width: size,
                 height: size * stretch,
-                strokeColor: pick(random, DECOY_COLORS),
+                strokeColor: pick(random, colors),
                 fillColor: color,
                 strokeWidth: between(random, 1, 3),
                 fillStyle: pick(random, FILL_STYLES),
@@ -124,12 +124,13 @@ export function generateDecoys(
     field: Rect,
     random: Random,
     stage: StageId,
-    makeId: () => string
+    makeId: () => string,
+    colors: readonly string[]
 ): Decoy[] {
     const result: Decoy[] = [];
     for (let i = 0; i < count; i++) {
         const kind = weightedPick(random, KIND_WEIGHTS);
-        result.push({ kind, element: decoy(kind, makeId(), field, random, stage) });
+        result.push({ kind, element: decoy(kind, makeId(), field, random, stage, colors) });
     }
     return result;
 }
