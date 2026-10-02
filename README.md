@@ -13,7 +13,7 @@ If something a challenge needs is deleted (by you, by undo, or by a collaborator
 | 1 | Click two buttons at the same time. | Drag one button on top of the other, then click where they overlap. Dropping a button does not count as a click. |
 | 2 | Find the rectangle in 8,000 shapes and click on it. | There is no rectangle. Draw one with the rectangle tool. |
 | 3 | Click Diny. She runs away from the cursor and opens her mouth while she runs. | Tap her on a touch screen, or switch devtools to touch emulation. A touch never moves the cursor before the tap, so she does not see it coming. After 30 seconds you pass anyway with "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ". |
-| 4 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer, press the green Start circle and drag out of the exit without touching a wall. Other tools get "Wrong tool." |
+| 4 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer (the challenge says so), press the green Start circle and drag out of the exit without touching a wall. |
 
 ## Develop
 
@@ -42,6 +42,7 @@ Diny is two images on the Drawdy CDN, `https://cdn.drawdy.io/stupid-hackathonx/d
 - Challenge 4 starts a run when `subscription:scene:pointer` reports a press on the Start circle and the active tool is `laser-pointer`. Each `subscription:scene:pointer-position` sample after that is checked against the wall positions at that moment. `subscription:tool:laser` fires on release and ends the run.
 - Text on the canvas uses a light or dark palette picked from `ModuleStyling.theme` and is recolored on `subscription:dom:theme-changed`. Text inside the XP windows uses the light palette, since the windows are light in both themes. `src/theme.test.ts` checks every text color for 4.5:1 contrast.
 - When the rectangle is found, the 8,000 shapes fall with a keyframed `LocalAnimation` (a small lift, then an accelerating drop with spin and fade, staggered per shape) and are removed when it ends.
+- Challenge 2 puts one shape in each 72 px grid cell, with at least 28 px between neighbours, so no tile of the canvas gets crowded. The field is about 8,200 by 5,100 px for 8,000 shapes. Once the rectangle is found, the camera moves to it and the Go button appears there.
 - Challenge 2 adds at most `10,000 - (elements already on the board) - 60` shapes, because boards are capped at 10,000 elements.
 
 Permissions: `scene` (everything on the canvas) and `dom` (toasts).

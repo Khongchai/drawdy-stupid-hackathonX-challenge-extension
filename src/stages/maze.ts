@@ -69,7 +69,7 @@ export class MazeStage implements Stage {
             role: "subtitle",
             x: x + 40,
             y: y + 96,
-            text: "Drag from the green circle to the exit. Don't touch the walls.",
+            text: "Use the laser pointer. Drag from the green circle to the exit. Don't touch the walls.",
             fontSize: 26,
             ink: "accent",
         });
@@ -133,7 +133,7 @@ export class MazeStage implements Stage {
         const began = await beginPreview([...this.wallIds, ...this.driftingIds]);
         this.previewing = began.size > 0;
         this.stopLoop = startPreviewLoop((now) => this.frame(now));
-        this.env.toast("Get out without touching a wall.", "info", 5000);
+        this.env.toast("Use the laser pointer. Don't touch the walls.", "info", 5000);
     }
 
     requiredIds(): Iterable<string> {
@@ -185,7 +185,7 @@ export class MazeStage implements Stage {
             run.laserConfirmed = value?.toolId === LASER_TOOL;
             if (!run.laserConfirmed) {
                 this.run = null;
-                this.env.toast("Wrong tool.", "bad");
+                this.env.toast("Use the laser pointer.", "bad");
             }
         });
     }

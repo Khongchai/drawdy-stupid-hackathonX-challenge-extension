@@ -13,11 +13,10 @@ import {
 } from "./scene";
 import { StageId, roundButton, textBlock } from "./scene-kit";
 import { Completion, Stage, StageEnv } from "./stage";
-import { createStage } from "./stages";
+import { createStage, regionSizeFor } from "./stages";
 import { PANEL_INK } from "./theme";
 
 const ORDER: readonly StageId[] = ["intro", "buttons", "find-rect", "diny", "maze", "finale"];
-const REGION_SIZE = { width: 1600, height: 1000 };
 const FADE_OUT_MS = 800;
 
 type Completed = { ids: string[]; goIds: Set<string> };
@@ -114,7 +113,7 @@ export class Game {
     }
 
     private async enter(id: StageId, error: string | null): Promise<void> {
-        const region = await findEmptyRegion(REGION_SIZE);
+        const region = await findEmptyRegion(regionSizeFor(id));
         this.generation++;
         this.region = region;
         this.completed = null;

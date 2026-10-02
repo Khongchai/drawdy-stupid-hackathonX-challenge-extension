@@ -1,10 +1,11 @@
 import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
-import { DecoyKind, generateDecoys } from "../decoys";
+import { DecoyKind, decoyGrid, generateDecoys } from "../decoys";
 import { FALL_MAX_MS, fallAnimation } from "../fall";
 import { newId } from "../host";
 import { currentTheme } from "../ink";
 import { seededRandom } from "../random";
-import { addElements, countElements, playThenRemove } from "../scene";
+import { addElements, countElements, elementRects, flyTo, playThenRemove } from "../scene";
+import { rectCenter } from "../geometry";
 import { textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
 import { DECOY_COLORS } from "../theme";
@@ -14,6 +15,17 @@ const BOARD_ELEMENT_LIMIT = 10_000;
 const RESERVED_ELEMENTS = 60;
 const CLICK_TOAST_COOLDOWN_MS = 1500;
 const HINT_AFTER_MS = 60_000;
+const DECOY_SPACING = 72;
+const FIELD_ASPECT = 1.6;
+const FIELD_PADDING = 160;
+const TITLE_BAND = 520;
+const GRID = decoyGrid(DECOY_COUNT, DECOY_SPACING, FIELD_ASPECT);
+const FOCUS_SIZE = { width: 1600, height: 1000 };
+
+export const FIND_RECT_REGION = {
+    width: GRID.width + FIELD_PADDING * 2,
+    height: GRID.height + TITLE_BAND + FIELD_PADDING,
+};
 
 export class FindRectStage implements Stage {
     readonly id = "find-rect" as const;
@@ -27,21 +39,22 @@ export class FindRectStage implements Stage {
     constructor(private readonly env: StageEnv) {}
 
     async build(): Promise<void> {
-        const { x, y, width, height } = this.env.region;
+        const { x, y, width } = this.env.region;
         const title = textLine({
             stage: this.id,
             role: "title",
-            x: x + 40,
-            y: y + 40,
+            x: x + FIELD_PADDING,
+            y: y + 140,
             text: "Challenge 2 of 4: Find the rectangle and click it.",
-            fontSize: 46,
+            fontSize: Math.round(46 * (width / FOCUS_SIZE.width)),
             ink: "title",
         });
         const room = BOARD_ELEMENT_LIMIT - RESERVED_ELEMENTS - (await countElements());
         const count = Math.max(0, Math.min(DECOY_COUNT, room));
         const decoys = generateDecoys(
             count,
-            { x: x + 20, y: y + 150, width: width - 60, height: height - 190 },
+            { x: x + FIELD_PADDING, y: y + TITLE_BAND },
+            GRID,
             seededRandom(Date.now()),
             this.id,
             newId,
@@ -102,9 +115,24 @@ export class FindRectStage implements Stage {
         for (const id of decoyIds) this.owned.delete(id);
         this.decoyKinds.clear();
         const random = seededRandom(Date.now());
-        void playThenRemove(decoyIds, () => fallAnimation(random), FALL_MAX_MS).then(() =>
-            this.env.complete({ lines: ["Found the rectangle.", "You drew it."] })
-        );
+        void playThenRemove(decoyIds, () => fallAnimation(random), FALL_MAX_MS).then(() => this.focusOn(rectId));
+    }
+
+    private async focusOn(rectId: string): Promise<void> {
+        if (!this.env.isCurrent()) return;
+        const drawn = (await elementRects([rectId])).get(rectId);
+        const center = drawn ? rectCenter(drawn) : rectCenter(this.env.region);
+        const focus = {
+            x: center.x - FOCUS_SIZE.width / 2,
+            y: center.y - FOCUS_SIZE.height / 2,
+            ...FOCUS_SIZE,
+        };
+        await flyTo(focus);
+        this.env.complete({
+            lines: ["Found the rectangle.", "You drew it."],
+            textAt: { x: focus.x + 80, y: focus.y + focus.height - 190 },
+            goAt: { x: focus.x + focus.width - 150, y: focus.y + focus.height - 130 },
+        });
     }
 
     async dispose(): Promise<void> {
