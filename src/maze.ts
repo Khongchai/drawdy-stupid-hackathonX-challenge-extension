@@ -99,14 +99,15 @@ function outerSidesOf(cell: Cell, cells: number): Side[] {
     return sides;
 }
 
-function pickExit(cells: number, open: Set<string>, start: Cell): { cell: Cell; side: Side } {
+function pickExit(cells: number, open: Set<string>, start: Cell, side?: Side): { cell: Cell; side: Side } {
     const steps = distancesFrom(start, cells, open);
     let best: Cell = { row: 0, col: 0 };
     let bestSteps = -1;
     for (let row = 0; row < cells; row++) {
         for (let col = 0; col < cells; col++) {
             const cell = { row, col };
-            if (outerSidesOf(cell, cells).length === 0) continue;
+            const sides = outerSidesOf(cell, cells);
+            if (sides.length === 0 || (side && !sides.includes(side))) continue;
             const s = steps.get(`${row},${col}`) ?? -1;
             if (s > bestSteps) {
                 best = cell;
@@ -114,7 +115,7 @@ function pickExit(cells: number, open: Set<string>, start: Cell): { cell: Cell; 
             }
         }
     }
-    return { cell: best, side: outerSidesOf(best, cells)[0] };
+    return { cell: best, side: side ?? outerSidesOf(best, cells)[0] };
 }
 
 function isExitEdge(
@@ -186,11 +187,11 @@ function buildWalls(
     return walls;
 }
 
-export function generateMaze(cells: number, cellSize: number, random: Random): MazeLayout {
+export function generateMaze(cells: number, cellSize: number, random: Random, exitSide?: Side): MazeLayout {
     const center = Math.floor(cells / 2);
     const start = { row: center, col: center };
     const open = carvePassages(cells, start, random);
-    const exit = pickExit(cells, open, start);
+    const exit = pickExit(cells, open, start, exitSide);
     const walls = buildWalls(cells, cellSize, open, exit);
     return {
         cells,
@@ -284,25 +285,37 @@ export function exitGap(maze: MazeLayout): ExitGap {
     }
 }
 
-export function stretchWallsAt(maze: MazeLayout, origin: Point, length: number, tMs: number): Segment[] {
-    const gap = exitGap(maze);
-    const drift = mazeDriftAt(tMs);
-    const place = (p: Point, along: number) => ({
-        x: origin.x + drift.x + p.x + gap.direction.x * along,
-        y: origin.y + drift.y + p.y + gap.direction.y * along,
-    });
-    return [
-        { a: place(gap.a, 0), b: place(gap.a, length) },
-        { a: place(gap.b, 0), b: place(gap.b, length) },
-    ];
-}
+export type ExitRule = {
+    walls(tMs: number): readonly Segment[];
+    escaped(p: Point, tMs: number): boolean;
+};
 
-export function stretchProgress(maze: MazeLayout, origin: Point, p: Point, tMs: number): number {
+export function pastExitGap(maze: MazeLayout, origin: Point, p: Point, tMs: number): number {
     const gap = exitGap(maze);
     const drift = mazeDriftAt(tMs);
     return (
         (p.x - (origin.x + drift.x + gap.a.x)) * gap.direction.x + (p.y - (origin.y + drift.y + gap.a.y)) * gap.direction.y
     );
+}
+
+export function openExit(maze: MazeLayout, origin: Point, tolerance: number): ExitRule {
+    return {
+        walls: () => [],
+        escaped: (p, tMs) => pastExitGap(maze, origin, p, tMs) > tolerance,
+    };
+}
+
+export function placeLocal(origin: Point, local: Segment, tMs: number): Segment {
+    const drift = mazeDriftAt(tMs);
+    return {
+        a: { x: origin.x + local.a.x + drift.x, y: origin.y + local.a.y + drift.y },
+        b: { x: origin.x + local.b.x + drift.x, y: origin.y + local.b.y + drift.y },
+    };
+}
+
+export function toLocal(origin: Point, p: Point, tMs: number): Point {
+    const drift = mazeDriftAt(tMs);
+    return { x: p.x - origin.x - drift.x, y: p.y - origin.y - drift.y };
 }
 
 export function judgeLaserStep(
@@ -311,18 +324,16 @@ export function judgeLaserStep(
     from: TimedPoint,
     to: TimedPoint,
     tolerance: number,
-    stretchLength = 0
+    exit: ExitRule = openExit(maze, origin, tolerance)
 ): StepVerdict {
     const step = { a: from, b: to };
     for (let w = 0; w < maze.walls.length; w++) {
         if (distanceBetweenSegments(step, posedWall(maze, origin, w, to.t)) <= tolerance) return "hit-wall";
     }
-    if (stretchLength > 0) {
-        for (const wall of stretchWallsAt(maze, origin, stretchLength, to.t)) {
-            if (distanceBetweenSegments(step, wall) <= tolerance) return "hit-wall";
-        }
+    for (const wall of exit.walls(to.t)) {
+        if (distanceBetweenSegments(step, wall) <= tolerance) return "hit-wall";
     }
-    return stretchProgress(maze, origin, to, to.t) > stretchLength + tolerance ? "escaped" : "clear";
+    return exit.escaped(to, to.t) ? "escaped" : "clear";
 }
 
 export function startCenterAt(maze: MazeLayout, origin: Point, tMs: number): Point {
@@ -336,14 +347,14 @@ export function judgeLaserRun(
     origin: Point,
     path: readonly TimedPoint[],
     tolerance: number,
-    stretchLength = 0
+    exit: ExitRule = openExit(maze, origin, tolerance)
 ): LaserVerdict {
     if (path.length === 0) return { kind: "started-outside-center" };
     if (distance(path[0], startCenterAt(maze, origin, path[0].t)) > maze.cellSize * 0.45) {
         return { kind: "started-outside-center" };
     }
     for (let i = 1; i < path.length; i++) {
-        const verdict = judgeLaserStep(maze, origin, path[i - 1], path[i], tolerance, stretchLength);
+        const verdict = judgeLaserStep(maze, origin, path[i - 1], path[i], tolerance, exit);
         if (verdict === "hit-wall") return { kind: "hit-wall", at: { x: path[i].x, y: path[i].y } };
         if (verdict === "escaped") return { kind: "escaped" };
     }

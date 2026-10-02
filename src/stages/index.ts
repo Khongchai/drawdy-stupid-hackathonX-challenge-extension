@@ -5,13 +5,15 @@ import { DinyStage } from "./diny";
 import { FinaleStage } from "./finale";
 import { FIND_RECT_REGION, FindRectStage } from "./find-rect";
 import { IntroStage } from "./intro";
-import { MazeStage } from "./maze";
+import { MAZE_REGION, MazeStage } from "./maze";
 import { SignUpStage } from "./sign-up";
 
 const DEFAULT_REGION = { width: 1600, height: 1000 };
 
 export function regionSizeFor(id: StageId): { width: number; height: number } {
-    return id === "find-rect" ? FIND_RECT_REGION : DEFAULT_REGION;
+    if (id === "find-rect") return FIND_RECT_REGION;
+    if (id === "maze") return MAZE_REGION;
+    return DEFAULT_REGION;
 }
 
 export function createStage(id: StageId, env: StageEnv): Stage {

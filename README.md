@@ -14,7 +14,7 @@ If something a challenge needs is deleted (by you, by undo, or by a collaborator
 | 2 | Click two buttons at the same time. | Drag one button on top of the other, then click where they overlap. Dropping a button does not count as a click. |
 | 3 | Find the rectangle in 9,900 shapes and click on it. | There is no rectangle. Draw one with the rectangle tool, or turn one of the square diamonds 45 degrees so it stands upright, then click it. |
 | 4 | Click Diny. She runs away from the cursor and opens her mouth while she runs. | Tap her on a touch screen, or switch devtools to touch emulation. A touch never moves the cursor before the tap, so she does not see it coming. After 30 seconds you pass anyway with "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ". |
-| 5 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer (the challenge says so), press the green Start circle and drag out of the exit without touching a wall. The corridor past the exit grows 4 to 6 times as you near its end, and the camera pans with it, before it lets you out. |
+| 5 | อย่าชนขอบ: get out of a slowly moving 7 by 7 maze. | Pick the laser pointer (the challenge says so), press the green Start circle and drag out of the exit without touching a wall. Past the exit is a winding corridor that turns up, down and right. Every time you reach its end, two more cells open and a "hehehe 😆" toast appears, for 10 seconds; then the end stays open and you can get out. |
 
 ## Getting it wrong
 

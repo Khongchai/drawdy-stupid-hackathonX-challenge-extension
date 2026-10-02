@@ -1,26 +1,27 @@
-import type { DrawdyElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import type { DrawdyElementSchema, DrawdyPreviewElementSchema, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
 import { challengeTitle } from "../challenges";
-import { Point } from "../geometry";
+import { CellBox, cellIndexAt, cellWalls, corridorExit, generateCorridorPath } from "../exit-corridor";
+import { Point, Segment } from "../geometry";
 import { newId, subscribe, trySend, unsubscribe } from "../host";
+import { ink, trackInk } from "../ink";
 import {
+    Cell,
     MazeLayout,
     TimedPoint,
     cellCenter,
-    exitGap,
     generateMaze,
     judgeLaserStep,
     mazeDriftAt,
-    stretchProgress,
-    stretchWallsAt,
+    placeLocal,
+    toLocal,
     wallPoseAt,
 } from "../maze";
 import { PreviewFrame, beginPreview, endPreview, startPreviewLoop } from "../preview-loop";
 import { seededRandom } from "../random";
-import { addElements, flyTo, updateElements } from "../scene";
+import { addElements, updateElements } from "../scene";
 import { tag, textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
 import { BUTTON } from "../theme";
-import { ink, trackInk } from "../ink";
 
 const CELLS = 7;
 const CELL_SIZE = 112;
@@ -30,17 +31,18 @@ const START_RADIUS = 36;
 const LASER_TOOL = "laser-pointer";
 const MISSED_START_COOLDOWN_MS = 2500;
 const HIT_MARKER_MS = 1400;
-const STRETCH_BASE = CELL_SIZE * 0.75;
-const STRETCH_STEP = CELL_SIZE * 1.6;
-const STRETCH_TRIGGER = CELL_SIZE * 0.9;
-const STRETCH_TAU_S = 0.12;
-const MIN_EXTENSIONS = 4;
-const MAX_EXTENSIONS = 6;
-const CAMERA_PAN_MS = 350;
-const EXIT_LABEL_GAP = 50;
-const EXTENSION_TAUNTS = ["Almost.", "So close.", "Keep going.", "The exit moved. Exits do that.", "Just a bit more.", "Nearly there. Probably."];
+const CORRIDOR_LENGTH = 44;
+const CORRIDOR_BOX: CellBox = { minRow: -1, maxRow: CELLS, minCol: CELLS, maxCol: CELLS + 5 };
+const INITIAL_REVEALED = 1;
+const REVEAL_STEP = 2;
+const STRETCH_MS = 10_000;
+const CORRIDOR_REDRAW_MS = 100;
+const LAUGHS = ["hehehe 😆", "hehehehe 😆", "hehehe 😆", "hehe 😆"];
 
-type Run = { last: TimedPoint; laserConfirmed: boolean | null; extensionsLeft: number };
+export const MAZE_REGION = { width: 1760, height: 1320 };
+
+type Run = { last: TimedPoint; laserConfirmed: boolean | null };
+type WallBatch = { previewId: string; ids: string[]; walls: Segment[] };
 
 export class MazeStage implements Stage {
     readonly id = "maze" as const;
@@ -51,6 +53,7 @@ export class MazeStage implements Stage {
     private wallIds: string[] = [];
     private driftingIds: string[] = [];
     private startId = "";
+    private exitId = "";
     private run: Run | null = null;
     private solved = false;
     private stopLoop: (() => void) | null = null;
@@ -58,23 +61,21 @@ export class MazeStage implements Stage {
     private previewing = false;
     private lastMissedStartToast = 0;
     private hitMarkers = new Set<string>();
-    private exitId = "";
-    private stretchIds: [string, string] = ["", ""];
-    private stretchPreviewId: string | null = null;
-    private stretchTarget = STRETCH_BASE;
-    private stretchVisible = STRETCH_BASE;
-    private lastFrameAt = 0;
-    private panned = 0;
+    private corridor: Cell[] = [];
+    private revealed = INITIAL_REVEALED;
+    private stretchStartedAt: number | null = null;
+    private batches: WallBatch[] = [];
+    private lastCorridorRedraw = 0;
     private random = seededRandom(Date.now());
 
     constructor(private readonly env: StageEnv) {}
 
     async build(): Promise<void> {
-        const { x, y, width, height } = this.env.region;
-        const maze = generateMaze(CELLS, CELL_SIZE, seededRandom(Date.now()));
+        const { x, y } = this.env.region;
+        const maze = generateMaze(CELLS, CELL_SIZE, this.random, "right");
         this.maze = maze;
-        const side = CELLS * CELL_SIZE;
-        this.origin = { x: x + (width - side) / 2, y: y + 170 + (height - 170 - side) / 2 };
+        this.corridor = generateCorridorPath(maze, CORRIDOR_BOX, CORRIDOR_LENGTH, this.random);
+        this.origin = { x: x + 100, y: y + 170 + CELL_SIZE };
         const title = textLine({
             stage: this.id,
             role: "title",
@@ -126,11 +127,7 @@ export class MazeStage implements Stage {
             textColor: "#ffffff",
             meta: tag(this.id, "start"),
         };
-        const gap = exitGap(maze);
-        const labelAt = {
-            x: (gap.a.x + gap.b.x) / 2 + gap.direction.x * (STRETCH_BASE + EXIT_LABEL_GAP),
-            y: (gap.a.y + gap.b.y) / 2 + gap.direction.y * (STRETCH_BASE + EXIT_LABEL_GAP),
-        };
+        const labelAt = cellCenter(maze, this.corridor[INITIAL_REVEALED]);
         const exitLabel = textLine({
             stage: this.id,
             role: "exit",
@@ -157,13 +154,7 @@ export class MazeStage implements Stage {
         ];
         const began = await beginPreview([...this.wallIds, ...this.driftingIds]);
         this.previewing = began.size > 0;
-        this.stretchIds = [newId(), newId()];
-        const stretch = await trySend({
-            type: "command:scene:create-drawdy-preview-elements",
-            req: { elements: this.stretchSchemas(performance.now()) },
-        });
-        this.stretchPreviewId = stretch?.previewId ?? null;
-        this.lastFrameAt = performance.now();
+        await this.revealCells(0, INITIAL_REVEALED);
         this.stopLoop = startPreviewLoop((now) => this.frame(now));
         this.env.toast("Use the laser pointer. Don't touch the walls.", "info", 5000);
     }
@@ -176,41 +167,67 @@ export class MazeStage implements Stage {
         return this.owned;
     }
 
-    private stretchSchemas(now: number) {
-        const walls = stretchWallsAt(this.maze!, this.origin, this.stretchVisible, now);
-        return walls.map((wall, i) => ({
-            type: "line" as const,
-            drawdyElementId: this.stretchIds[i],
-            from: [wall.a.x, wall.a.y] as [number, number],
-            to: [wall.b.x, wall.b.y] as [number, number],
+    private wallSchema(id: string, local: Segment, now: number): DrawdyPreviewElementSchema {
+        const placed = placeLocal(this.origin, local, now);
+        return {
+            type: "line",
+            drawdyElementId: id,
+            from: [placed.a.x, placed.a.y],
+            to: [placed.b.x, placed.b.y],
             color: ink("wall"),
             strokeWidth: WALL_WIDTH,
             roughness: 0,
-        }));
+        };
+    }
+
+    private async revealCells(fromIndex: number, toIndex: number): Promise<void> {
+        const maze = this.maze;
+        if (!maze || toIndex <= fromIndex) return;
+        const walls: Segment[] = [];
+        for (let i = fromIndex; i < toIndex; i++) walls.push(...cellWalls(maze, this.corridor, i));
+        const ids = walls.map(() => newId());
+        const now = performance.now();
+        const created = await trySend({
+            type: "command:scene:create-drawdy-preview-elements",
+            req: { elements: walls.map((wall, i) => this.wallSchema(ids[i], wall, now)) },
+        });
+        if (created) this.batches.push({ previewId: created.previewId, ids, walls });
+    }
+
+    private async collapseCorridor(): Promise<void> {
+        const extra = this.batches.splice(1);
+        if (extra.length === 0) return;
+        await trySend({
+            type: "command:scene:delete-drawdy-preview-elements",
+            req: { previewIds: extra.map((b) => b.previewId) },
+        });
     }
 
     private async frame(now: number): Promise<PreviewFrame> {
         const maze = this.maze;
         if (!maze || !this.previewing) return [];
-        const dt = Math.min(0.1, (now - this.lastFrameAt) / 1000);
-        this.lastFrameAt = now;
-        this.stretchVisible += (this.stretchTarget - this.stretchVisible) * (1 - Math.exp(-dt / STRETCH_TAU_S));
-        if (this.stretchPreviewId) {
-            await trySend({ type: "command:scene:update-drawdy-preview-elements", req: { elements: this.stretchSchemas(now) } });
+        if (now - this.lastCorridorRedraw >= CORRIDOR_REDRAW_MS && this.batches.length > 0) {
+            this.lastCorridorRedraw = now;
+            await trySend({
+                type: "command:scene:update-drawdy-preview-elements",
+                req: { elements: this.batches.flatMap((b) => b.walls.map((wall, i) => this.wallSchema(b.ids[i], wall, now))) },
+            });
         }
         const drift = mazeDriftAt(now);
-        const direction = exitGap(maze).direction;
-        const exitShift = this.stretchVisible - STRETCH_BASE;
+        const labelRest = cellCenter(maze, this.corridor[INITIAL_REVEALED]);
+        const labelNow = cellCenter(maze, this.corridor[Math.min(this.revealed, this.corridor.length - 1)]);
         return [
             ...this.wallIds.map((drawdyElementId, i) => {
                 const pose = wallPoseAt(maze, i, now);
                 return { drawdyElementId, transform: { x: pose.dx, y: pose.dy, scale: 1, rotation: pose.rotation } };
             }),
             ...this.driftingIds.map((drawdyElementId) => {
-                const shift = drawdyElementId === this.exitId ? exitShift : 0;
+                const isExit = drawdyElementId === this.exitId;
+                const shiftX = isExit ? labelNow.x - labelRest.x : 0;
+                const shiftY = isExit ? labelNow.y - labelRest.y : 0;
                 return {
                     drawdyElementId,
-                    transform: { x: drift.x + direction.x * shift, y: drift.y + direction.y * shift, scale: 1, rotation: 0 },
+                    transform: { x: drift.x + shiftX, y: drift.y + shiftY, scale: 1, rotation: 0 },
                 };
             }),
         ];
@@ -234,8 +251,7 @@ export class MazeStage implements Stage {
     }
 
     private beginRun(at: Point): void {
-        const extensionsLeft = MIN_EXTENSIONS + Math.floor(this.random() * (MAX_EXTENSIONS - MIN_EXTENSIONS + 1));
-        const run: Run = { last: { ...at, t: performance.now() }, laserConfirmed: null, extensionsLeft };
+        const run: Run = { last: { ...at, t: performance.now() }, laserConfirmed: null };
         this.run = run;
         void trySend({ type: "command:tools:get-active" }).then((value) => {
             if (this.run !== run) return;
@@ -247,12 +263,18 @@ export class MazeStage implements Stage {
         });
     }
 
+    private stretchOver(now: number): boolean {
+        if (this.revealed >= this.corridor.length - 1) return true;
+        return this.stretchStartedAt !== null && now - this.stretchStartedAt >= STRETCH_MS;
+    }
+
     private advanceRun(at: Point): void {
         const run = this.run;
         const maze = this.maze;
         if (!run || !maze) return;
         const next = { ...at, t: performance.now() };
-        const verdict = judgeLaserStep(maze, this.origin, run.last, next, WALL_TOLERANCE, this.stretchTarget);
+        const exit = corridorExit(maze, this.origin, this.corridor, this.revealed, this.stretchOver(next.t));
+        const verdict = judgeLaserStep(maze, this.origin, run.last, next, WALL_TOLERANCE, exit);
         run.last = next;
         if (verdict === "hit-wall") {
             this.endRun();
@@ -265,43 +287,32 @@ export class MazeStage implements Stage {
             if (run.laserConfirmed === false) return;
             this.solved = true;
             this.env.toast("You got out.", "good", 5000);
-            void flyTo(this.env.region, 600).then(() =>
-                this.env.complete({ lines: ["You got out without touching a wall."] })
-            );
+            const { x, y } = this.env.region;
+            this.env.complete({
+                lines: ["You got out without touching a wall."],
+                textAt: { x: x + 100, y: y + 1215 },
+                goAt: { x: x + 1660, y: y + 1230 },
+            });
             return;
         }
-        const progress = stretchProgress(maze, this.origin, next, next.t);
-        if (run.extensionsLeft > 0 && progress > Math.max(0, this.stretchTarget - STRETCH_TRIGGER)) {
-            run.extensionsLeft--;
-            this.stretchTarget += STRETCH_STEP;
-            void this.panCamera(STRETCH_STEP);
-            this.env.toast(EXTENSION_TAUNTS[Math.floor(this.random() * EXTENSION_TAUNTS.length)], "info", 1500);
-        }
+        if (this.stretchOver(next.t)) return;
+        const cell = cellIndexAt(maze, this.corridor, toLocal(this.origin, next, next.t));
+        if (cell >= 0 && cell >= this.revealed - 1) this.stretch(next.t);
     }
 
-    private async panCamera(distance: number): Promise<void> {
-        const maze = this.maze;
-        const viewport = (await trySend({ type: "command:camera:get-viewport-rect" }))?.rect;
-        if (!maze || !viewport) return;
-        const direction = exitGap(maze).direction;
-        this.panned += distance;
-        await trySend({
-            type: "command:camera:fly-to-rect",
-            req: {
-                rect: { ...viewport, x: viewport.x + direction.x * distance, y: viewport.y + direction.y * distance },
-                flyDurationMs: CAMERA_PAN_MS,
-                zoom: 1000,
-            },
-        });
+    private stretch(now: number): void {
+        if (this.stretchStartedAt === null) this.stretchStartedAt = now;
+        const from = this.revealed;
+        this.revealed = Math.min(this.corridor.length - 1, this.revealed + REVEAL_STEP);
+        void this.revealCells(from, this.revealed);
+        this.env.toast(LAUGHS[Math.floor(this.random() * LAUGHS.length)], "info", 1500);
     }
 
     private endRun(): void {
         this.run = null;
-        this.stretchTarget = STRETCH_BASE;
-        if (this.panned > 0) {
-            this.panned = 0;
-            void flyTo(this.env.region, 500);
-        }
+        this.revealed = INITIAL_REVEALED;
+        this.stretchStartedAt = null;
+        void this.collapseCorridor();
     }
 
     private onLaserReleased(): void {
@@ -356,9 +367,12 @@ export class MazeStage implements Stage {
         this.stopLoop = null;
         this.run = null;
         await this.deleteHitMarkers([...this.hitMarkers]);
-        if (this.stretchPreviewId) {
-            await trySend({ type: "command:scene:delete-drawdy-preview-elements", req: { previewIds: [this.stretchPreviewId] } });
-            this.stretchPreviewId = null;
+        const batches = this.batches.splice(0);
+        if (batches.length > 0) {
+            await trySend({
+                type: "command:scene:delete-drawdy-preview-elements",
+                req: { previewIds: batches.map((b) => b.previewId) },
+            });
         }
         for (const id of this.subscriptions) await unsubscribe(id);
         this.subscriptions = [];

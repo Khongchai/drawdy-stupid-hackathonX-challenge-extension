@@ -6,7 +6,6 @@ import {
     cellCenter,
     exitMarkerPoint,
     generateMaze,
-    exitGap,
     judgeLaserRun,
     mazeDriftAt,
 } from "./maze";
@@ -21,9 +20,6 @@ const seeds = [1, 2, 3, 42, 1337];
 const harderCellsPerSide = 7;
 const harderCellSize = 112;
 const pastExitDistance = 80;
-const stretchLength = 600;
-const shortOfStretchEnd = 40;
-const sidewaysOffset = 120;
 
 function openNeighbourCells(maze: MazeLayout, cell: Cell): Cell[] {
     const center = cellCenter(maze, cell);
@@ -147,43 +143,5 @@ describe("judgeLaserRun", () => {
         const start = cellCenter(maze, maze.start);
         const path = timePointsAtFixedStepsFollowingDrift([start, { x: start.x + 10, y: start.y + 10 }]);
         expect(judgeLaserRun(maze, origin, path, wallTolerance)).toEqual({ kind: "stopped-inside" });
-    });
-});
-
-describe("judgeLaserRun with an exit stretch", () => {
-    function solveIntoCorridorCentersAndExitCenter(seed: number) {
-        const maze = generateMaze(harderCellsPerSide, harderCellSize, seededRandom(seed));
-        const centers = solveMazeIntoCellPath(maze).map((c) => cellCenter(maze, c));
-        const gap = exitGap(maze);
-        const mouth = { x: (gap.a.x + gap.b.x) / 2, y: (gap.a.y + gap.b.y) / 2 };
-        const along = (distance: number, sideways = 0) => ({
-            x: mouth.x + gap.direction.x * distance - gap.direction.y * sideways,
-            y: mouth.y + gap.direction.y * distance + gap.direction.x * sideways,
-        });
-        return { maze, centers, along };
-    }
-
-    it.each(seeds)("does not count the run as escaped while it is still inside the stretch (seed %i)", (seed) => {
-        const { maze, centers, along } = solveIntoCorridorCentersAndExitCenter(seed);
-        const path = timePointsAtFixedStepsFollowingDrift(
-            interpolateEvery([...centers, along(stretchLength - shortOfStretchEnd)], 10)
-        );
-        expect(judgeLaserRun(maze, origin, path, wallTolerance, stretchLength)).toEqual({ kind: "stopped-inside" });
-    });
-
-    it.each(seeds)("counts the run as escaped once it passes the end of the stretch (seed %i)", (seed) => {
-        const { maze, centers, along } = solveIntoCorridorCentersAndExitCenter(seed);
-        const path = timePointsAtFixedStepsFollowingDrift(
-            interpolateEvery([...centers, along(stretchLength + pastExitDistance)], 10)
-        );
-        expect(judgeLaserRun(maze, origin, path, wallTolerance, stretchLength)).toEqual({ kind: "escaped" });
-    });
-
-    it.each(seeds)("reports a wall hit when the run leaves the stretch sideways (seed %i)", (seed) => {
-        const { maze, centers, along } = solveIntoCorridorCentersAndExitCenter(seed);
-        const path = timePointsAtFixedStepsFollowingDrift(
-            interpolateEvery([...centers, along(stretchLength / 2), along(stretchLength / 2, sidewaysOffset)], 10)
-        );
-        expect(judgeLaserRun(maze, origin, path, wallTolerance, stretchLength).kind).toBe("hit-wall");
     });
 });
