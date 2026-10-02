@@ -1,0 +1,31 @@
+export const XP = {
+    sky: "#1cb9e6",
+    paleSky: "#d5ecf2",
+    cloud: "#f7f7f5",
+    blissGreen: "#7ecc16",
+    deepGrass: "#2c7000",
+    taskbarBlue: "#235ddb",
+    startGreen: "#3aa73c",
+    titleNavy: "#1d298b",
+    goldfish: "#fd8209",
+    msnAqua: "#22aae4",
+    clover: "#79ab28",
+    winGrey: "#e1ded5",
+    dialogBody: "#ece9d8",
+    tooltip: "#ffffe1",
+    closeRed: "#d9442e",
+    ink: "#1b1b1b",
+    white: "#ffffff",
+} as const;
+
+export const DECOY_COLORS = [
+    XP.sky,
+    XP.msnAqua,
+    XP.blissGreen,
+    XP.clover,
+    XP.taskbarBlue,
+    XP.titleNavy,
+    XP.goldfish,
+    XP.startGreen,
+    XP.paleSky,
+] as const;
