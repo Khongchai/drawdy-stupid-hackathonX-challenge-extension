@@ -1,6 +1,6 @@
 import type { DrawdyElementSchema } from "@drawdy/driver-protocol";
 import { describe, expect, it } from "vitest";
-import { DECOY_MIN_GAP, decoyGrid, generateDecoys } from "./decoys";
+import { DECOY_MIN_GAP, DIAMOND_COUNT, decoyGrid, generateDecoys } from "./decoys";
 import { Rect } from "./geometry";
 import { seededRandom } from "./random";
 import { DECOY_COLORS } from "./theme";
@@ -81,13 +81,12 @@ describe("generateDecoys", () => {
     });
 });
 
-describe("generateDecoys square diamonds", () => {
-    it("makes about half of the diamonds square so one can be turned into a rectangle", () => {
-        const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(17);
+describe("generateDecoys diamonds", () => {
+    it.each([17, 18, 19])("places exactly five diamonds, all square, so each one can be turned into a rectangle (seed %i)", (seed) => {
+        const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(seed);
         const diamonds = decoys.flatMap((d) => (d.element.type === "shape" && d.element.componentType === "diamond" ? [d.element] : []));
-        const square = diamonds.filter((d) => d.width === d.height);
-        expect(square.length / diamonds.length).toBeGreaterThan(0.4);
-        expect(square.length / diamonds.length).toBeLessThan(0.6);
+        expect(diamonds).toHaveLength(DIAMOND_COUNT);
+        expect(diamonds.every((d) => d.width === d.height)).toBe(true);
     });
 });
 
