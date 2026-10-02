@@ -81,6 +81,16 @@ describe("generateDecoys", () => {
     });
 });
 
+describe("generateDecoys square diamonds", () => {
+    it("makes about half of the diamonds square so one can be turned into a rectangle", () => {
+        const { decoys } = generateNineThousandNineHundredDecoysWithSequentialIds(17);
+        const diamonds = decoys.flatMap((d) => (d.element.type === "shape" && d.element.componentType === "diamond" ? [d.element] : []));
+        const square = diamonds.filter((d) => d.width === d.height);
+        expect(square.length / diamonds.length).toBeGreaterThan(0.4);
+        expect(square.length / diamonds.length).toBeLessThan(0.6);
+    });
+});
+
 describe("decoyGrid", () => {
     it("has room for every decoy and is wider than tall for an aspect above one", () => {
         const grid = decoyGrid(decoyCount, spacing, aspect);

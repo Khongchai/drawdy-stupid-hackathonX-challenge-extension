@@ -22,6 +22,7 @@ export type Decoy = { element: DrawdyElementSchema; kind: DecoyKind };
 export type DecoyGrid = { columns: number; rows: number; spacing: number; width: number; height: number };
 
 export const DECOY_MIN_GAP = 28;
+export const SQUARE_DIAMOND_SHARE = 0.5;
 
 export function decoyGrid(count: number, spacing: number, aspect: number): DecoyGrid {
     const columns = Math.max(1, Math.ceil(Math.sqrt(count * aspect)));
@@ -49,7 +50,8 @@ function decoy(
         case "circle":
         case "diamond": {
             const width = between(random, footprint * 0.35, footprint);
-            const height = kind === "diamond" ? between(random, footprint * 0.35, footprint) : width;
+            const squareDiamond = kind === "diamond" && random() < SQUARE_DIAMOND_SHARE;
+            const height = kind === "diamond" && !squareDiamond ? between(random, footprint * 0.35, footprint) : width;
             return {
                 type: "shape",
                 componentType: kind,

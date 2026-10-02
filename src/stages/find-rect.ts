@@ -10,6 +10,8 @@ import { rectCenter } from "../geometry";
 import { textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
 import { DECOY_COLORS } from "../theme";
+import { looksLikeUprightRectangle } from "../rectangle-check";
+import { subscribe, unsubscribe } from "../host";
 
 const DECOY_COUNT = 9900;
 const BOARD_ELEMENT_LIMIT = 10_000;
@@ -37,6 +39,8 @@ export class FindRectStage implements Stage {
     private solved = false;
     private lastClickToastAt = 0;
     private hintTimer: ReturnType<typeof setTimeout> | null = null;
+    private turnedDiamonds = new Set<string>();
+    private updatesSubscription: string | null = null;
 
     constructor(private readonly env: StageEnv) {}
 
@@ -80,6 +84,10 @@ export class FindRectStage implements Stage {
         this.hintTimer = setTimeout(() => {
             if (!this.solved && this.env.isCurrent()) this.env.toast("Hint: you can draw one.", "info", 6000);
         }, HINT_AFTER_MS);
+        this.updatesSubscription = await subscribe({
+            type: "subscription:scene:elements-updated",
+            req: { properties: ["points"] },
+        });
     }
 
     requiredIds(): Iterable<string> {
@@ -98,10 +106,28 @@ export class FindRectStage implements Stage {
             }
             return;
         }
+        if (event.type === "subscription:scene:elements-updated") {
+            this.onUpdated(event.body.drawdyElements);
+            return;
+        }
         if (event.type === "subscription:scene:click") {
-            const clickedRect = event.body.drawdyElementIds.find((id) => this.drawnRects.has(id));
+            const clickedRect = event.body.drawdyElementIds.find((id) => this.drawnRects.has(id) || this.turnedDiamonds.has(id));
             if (clickedRect) this.solve(clickedRect);
             else this.onClick(event.body.drawdyElementIds, event.body.cursor.canvasSpace);
+        }
+    }
+
+    private onUpdated(elements: readonly { id: string; points?: [number, number][] }[]): void {
+        for (const element of elements) {
+            if (this.decoyKinds.get(element.id) !== "diamond" || !element.points) continue;
+            const isRectangle = looksLikeUprightRectangle(element.points);
+            const wasRectangle = this.turnedDiamonds.has(element.id);
+            if (isRectangle && !wasRectangle) {
+                this.turnedDiamonds.add(element.id);
+                this.env.toast("That's a rectangle now. Click it.", "good", 4000);
+            } else if (!isRectangle && wasRectangle) {
+                this.turnedDiamonds.delete(element.id);
+            }
         }
     }
 
@@ -116,16 +142,21 @@ export class FindRectStage implements Stage {
 
     private solve(rectId: string): void {
         this.solved = true;
+        const turned = this.turnedDiamonds.has(rectId);
         this.owned.add(rectId);
-        this.env.toast("Found it.", "good", 4000);
+        this.decoyKinds.delete(rectId);
+        void unsubscribe(this.updatesSubscription);
+        this.updatesSubscription = null;
+        this.env.toast(turned ? "A diamond, turned 45 degrees. Sure. That counts." : "Found it.", "good", 4000);
         const decoyIds = [...this.decoyKinds.keys()];
         for (const id of decoyIds) this.owned.delete(id);
         this.decoyKinds.clear();
         const random = seededRandom(Date.now());
-        void playThenRemove(decoyIds, () => fallAnimation(random), FALL_MAX_MS).then(() => this.focusOn(rectId));
+        const lines = turned ? ["Found the rectangle.", "It was a diamond a minute ago."] : ["Found the rectangle.", "You drew it."];
+        void playThenRemove(decoyIds, () => fallAnimation(random), FALL_MAX_MS).then(() => this.focusOn(rectId, lines));
     }
 
-    private async focusOn(rectId: string): Promise<void> {
+    private async focusOn(rectId: string, lines: readonly string[]): Promise<void> {
         if (!this.env.isCurrent()) return;
         const drawn = (await elementRects([rectId])).get(rectId);
         const center = drawn ? rectCenter(drawn) : rectCenter(this.env.region);
@@ -136,7 +167,7 @@ export class FindRectStage implements Stage {
         };
         await flyTo(focus);
         this.env.complete({
-            lines: ["Found the rectangle.", "You drew it."],
+            lines,
             textAt: { x: focus.x + 80, y: focus.y + focus.height - 190 },
             goAt: { x: focus.x + focus.width - 150, y: focus.y + focus.height - 130 },
         });
@@ -145,5 +176,7 @@ export class FindRectStage implements Stage {
     async dispose(): Promise<void> {
         if (this.hintTimer) clearTimeout(this.hintTimer);
         this.hintTimer = null;
+        await unsubscribe(this.updatesSubscription);
+        this.updatesSubscription = null;
     }
 }
