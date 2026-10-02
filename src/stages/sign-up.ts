@@ -1,22 +1,23 @@
-import type { CollaborationUserPresence, DriverSubscriptionEvent } from "@drawdy/driver-protocol";
+import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
 import { challengeTitle } from "../challenges";
-import { subscribe, unsubscribe } from "../host";
-import { lookUpSelf, selfOf } from "../player";
+import { checkLoggedIn } from "../login";
+import { lookUpSelf } from "../player";
 import { addElements, updateElements } from "../scene";
 import { textLine, xpWindow } from "../scene-kit";
-import { looksSignedUp } from "../sign-up";
 import { Stage, StageEnv } from "../stage";
 import { PANEL_INK } from "../theme";
 
-const RETRY_LOOKUP_MS = 4000;
+const POLL_MS = 3000;
+const FAILED_CHECKS_BEFORE_PASSING = 3;
 
 export class SignUpStage implements Stage {
     readonly id = "sign-up" as const;
     private owned: string[] = [];
     private required: string[] = [];
     private solved = false;
-    private subscriptions: (string | null)[] = [];
-    private retryTimer: ReturnType<typeof setTimeout> | null = null;
+    private disposed = false;
+    private failedChecks = 0;
+    private pollTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(private readonly env: StageEnv) {}
 
@@ -54,8 +55,7 @@ export class SignUpStage implements Stage {
         this.required = [...window.ids, instruction.drawdyElementId];
         await addElements(elements);
         await updateElements(window.ids.map((id) => ({ drawdyElementId: id, properties: { locked: true } })));
-        this.subscriptions = [await subscribe({ type: "subscription:collaboration:presence-changed" })];
-        await this.check();
+        await this.check(true);
     }
 
     requiredIds(): Iterable<string> {
@@ -66,37 +66,32 @@ export class SignUpStage implements Stage {
         return this.owned;
     }
 
-    handle(event: DriverSubscriptionEvent): void {
-        if (this.solved || event.type !== "subscription:collaboration:presence-changed") return;
-        const self = selfOf(event.body.users);
-        if (self) this.judge(self, false);
-    }
+    handle(_event: DriverSubscriptionEvent): void {}
 
-    private async check(): Promise<void> {
-        if (this.solved) return;
-        const lookup = await lookUpSelf();
-        if (lookup.kind === "found") {
-            this.judge(lookup.user, true);
+    private async check(first: boolean): Promise<void> {
+        if (this.solved || this.disposed) return;
+        const state = await checkLoggedIn();
+        if (this.solved || this.disposed) return;
+        if (state === "logged-in") {
+            await this.pass();
             return;
         }
-        if (lookup.kind === "denied") {
+        if (state === "unknown" && ++this.failedChecks >= FAILED_CHECKS_BEFORE_PASSING) {
             this.solved = true;
-            this.env.toast("No permission to see your name. You pass anyway.", "info", 5000);
+            this.env.toast("Couldn't check if you're signed in. You pass anyway.", "info", 5000);
             this.env.complete({ lines: ["We couldn't check. You pass."], ...this.completionPlacement() });
             return;
         }
-        this.retryTimer = setTimeout(() => void this.check(), RETRY_LOOKUP_MS);
+        if (first && state === "guest") this.env.toast("Sign up for Drawdy.", "info", 5000);
+        this.pollTimer = setTimeout(() => void this.check(false), POLL_MS);
     }
 
-    private judge(self: CollaborationUserPresence, remind: boolean): void {
-        if (this.solved) return;
-        if (!looksSignedUp(self)) {
-            if (remind) this.env.toast("Sign up for Drawdy.", "info", 5000);
-            return;
-        }
+    private async pass(): Promise<void> {
         this.solved = true;
-        this.env.toast(`Signed in as ${self.name}.`, "good", 5000);
-        this.env.complete({ lines: [`Hi, ${self.name}.`], ...this.completionPlacement() });
+        const self = await lookUpSelf();
+        const name = self.kind === "found" ? self.user.name : null;
+        this.env.toast(name ? `Signed in as ${name}.` : "Signed in.", "good", 5000);
+        this.env.complete({ lines: [name ? `Hi, ${name}.` : "You're signed in."], ...this.completionPlacement() });
     }
 
     private completionPlacement() {
@@ -105,9 +100,8 @@ export class SignUpStage implements Stage {
     }
 
     async dispose(): Promise<void> {
-        if (this.retryTimer) clearTimeout(this.retryTimer);
-        this.retryTimer = null;
-        for (const id of this.subscriptions) await unsubscribe(id);
-        this.subscriptions = [];
+        this.disposed = true;
+        if (this.pollTimer) clearTimeout(this.pollTimer);
+        this.pollTimer = null;
     }
 }

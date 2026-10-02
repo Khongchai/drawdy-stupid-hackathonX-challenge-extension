@@ -3,7 +3,7 @@ import { CHALLENGE_COUNT } from "../challenges";
 import { Point } from "../geometry";
 import { newId } from "../host";
 import { lookUpSelf } from "../player";
-import { looksSignedUp } from "../sign-up";
+import { LoginState, checkLoggedIn } from "../login";
 import { between, pick, seededRandom } from "../random";
 import { addElements, updateElements } from "../scene";
 import { roundButton, tag, textBlock, textLine } from "../scene-kit";
@@ -15,7 +15,9 @@ const CONFETTI_COUNT = 140;
 const AVATAR_SIZE = 150;
 const AVATAR_RING = 12;
 
-function playerCard(user: CollaborationUserPresence, center: Point): DrawdyElementSchema[] {
+const LOGIN_LABELS: Record<LoginState, string> = { "logged-in": "Signed in to Drawdy", guest: "Guest", unknown: "Player" };
+
+function playerCard(user: CollaborationUserPresence, login: LoginState, center: Point): DrawdyElementSchema[] {
     const ringSize = AVATAR_SIZE + AVATAR_RING * 2;
     const ring: DrawdyElementSchema = {
         type: "shape",
@@ -59,7 +61,7 @@ function playerCard(user: CollaborationUserPresence, center: Point): DrawdyEleme
             role: "player-status",
             x: textX + 2,
             y: center.y + 16,
-            text: looksSignedUp(user) ? "Signed in to Drawdy" : "Guest",
+            text: LOGIN_LABELS[login],
             fontSize: 28,
             ink: "accent",
         }),
@@ -125,7 +127,8 @@ export class FinaleStage implements Stage {
         });
         this.againIds = new Set(again.ids);
         const self = await lookUpSelf();
-        const card = self.kind === "found" ? playerCard(self.user, { x: x + 210, y: y + 720 }) : [];
+        const login = await checkLoggedIn();
+        const card = self.kind === "found" ? playerCard(self.user, login, { x: x + 210, y: y + 720 }) : [];
         const elements = [...confetti, title, ...lines, ...card, ...again.elements];
         this.owned = elements.map((e) => e.drawdyElementId);
         this.required = [title.drawdyElementId, ...again.ids];

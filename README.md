@@ -10,7 +10,7 @@ If something a challenge needs is deleted (by you, by undo, or by a collaborator
 
 | # | Challenge | Solution |
 | --- | --- | --- |
-| 1 | Sign up for Drawdy. | Sign in with Drawdy's own sign-in button. The page reloads after sign-in and the challenge passes. If you were already signed in, it passes right away. |
+| 1 | Sign up for Drawdy. | Sign in with Drawdy's own sign-in button. The challenge checks every 3 seconds and passes once you are signed in. If you were already signed in, it passes right away. |
 | 2 | Click two buttons at the same time. | Drag one button on top of the other, then click where they overlap. Dropping a button does not count as a click. |
 | 3 | Find the rectangle in 9,900 shapes and click on it. | There is no rectangle. Draw one with the rectangle tool, then click it. |
 | 4 | Click Diny. She runs away from the cursor and opens her mouth while she runs. | Tap her on a touch screen, or switch devtools to touch emulation. A touch never moves the cursor before the tap, so she does not see it coming. After 30 seconds you pass anyway with "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ". |
@@ -59,7 +59,7 @@ Diny is two images on the Drawdy CDN, `https://cdn.drawdy.io/stupid-hackathonx/d
 - Challenge 5 starts a run when `subscription:scene:pointer` reports a press on the Start circle and the active tool is `laser-pointer`. Each `subscription:scene:pointer-position` sample after that is checked against the wall positions at that moment. `subscription:tool:laser` fires on release and ends the run.
 - Text on the canvas uses a light or dark palette picked from `ModuleStyling.theme` and is recolored on `subscription:dom:theme-changed`. Text inside the XP windows uses the light palette, since the windows are light in both themes. `src/theme.test.ts` checks every text color for 4.5:1 contrast.
 - When the rectangle is found, the shapes stay where they are and the camera glides to the rectangle over 1.6 seconds. Pressing Go removes all of them in one go once the camera has left, without animating them.
-- Challenge 1 reads your own entry from `command:collaboration:get-all-users-in-board` and rechecks on `subscription:collaboration:presence-changed`. The protocol has no signed-in flag, so you count as signed up if you have an avatar, or if your name is not one of Drawdy's random guest names ("Adjective Animal", copied from `frontend/src/features/collaboration/constants.ts` into `src/sign-up.ts`). Renaming yourself also passes. If the `collaboration` permission is denied, you pass anyway.
+- Challenge 1 calls `command:auth:check-logged-in` (protocol 0.7.0, no permission needed) when it starts and every 3 seconds after. If the check fails three times in a row, you pass anyway. The greeting and the finale card read your name and avatar from `command:collaboration:get-all-users-in-board`, and the finale shows "Signed in to Drawdy" or "Guest" from the same login check.
 - The finale shows your avatar (or your color and initial), your name, and whether you are signed in.
 - Challenge 3 puts one shape in each 72 px grid cell, with at least 28 px between neighbours, so no tile of the canvas gets crowded. The field is about 9,100 by 5,700 px for 9,900 shapes. Once the rectangle is found, the camera moves to it and the Go button appears there.
 - Challenge 3 adds at most `10,000 - (elements already on the board) - 60` shapes, because boards are capped at 10,000 elements.
