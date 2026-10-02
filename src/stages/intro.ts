@@ -35,6 +35,7 @@ export class IntroStage implements Stage {
             width: 1360,
             height: 860,
             title: "welcome.txt - Notepad",
+            anchor: this.env.anchor,
         });
         const elements: DrawdyElementSchema[] = [...window.elements];
         elements.push(

@@ -1,5 +1,5 @@
 import type { DrawdyElementSchema } from "@drawdy/driver-protocol";
-import { Point } from "./geometry";
+import { Point, Rect } from "./geometry";
 import { newId } from "./host";
 import { ink, trackInk } from "./ink";
 import { BUTTON, InkToken, XP } from "./theme";
@@ -8,16 +8,33 @@ export type StageId = "intro" | "sign-up" | "buttons" | "find-rect" | "diny" | "
 
 export const META_KEY = "stupidHackathonX";
 
-export type ElementTag = { stage: StageId; role: string };
+export type StageAnchor = { seed: number; region: Rect; error: string | null };
 
-export function tag(stage: StageId, role: string): Record<string, unknown> {
-    return { [META_KEY]: { stage, role } };
+export type ElementTag = { stage: StageId; role: string; anchor?: StageAnchor };
+
+export function tag(stage: StageId, role: string, anchor?: StageAnchor): Record<string, unknown> {
+    return { [META_KEY]: anchor ? { stage, role, anchor } : { stage, role } };
+}
+
+function isAnchor(value: unknown): value is StageAnchor {
+    const a = value as Partial<StageAnchor> | undefined;
+    const r = a?.region as Partial<Rect> | undefined;
+    return (
+        typeof a?.seed === "number" &&
+        typeof r?.x === "number" &&
+        typeof r?.y === "number" &&
+        typeof r?.width === "number" &&
+        typeof r?.height === "number" &&
+        (a.error === null || typeof a.error === "string")
+    );
 }
 
 export function readTag(meta: Record<string, unknown> | undefined): ElementTag | null {
     const value = meta?.[META_KEY] as Partial<ElementTag> | undefined;
     if (!value || typeof value.stage !== "string" || typeof value.role !== "string") return null;
-    return { stage: value.stage as StageId, role: value.role };
+    return isAnchor(value.anchor)
+        ? { stage: value.stage as StageId, role: value.role, anchor: value.anchor }
+        : { stage: value.stage as StageId, role: value.role };
 }
 
 export type Built = { elements: DrawdyElementSchema[]; ids: string[] };
@@ -34,6 +51,7 @@ export function textLine(
         fontSize: number;
         width?: number;
         textAlign?: "left" | "center" | "right";
+        anchor?: StageAnchor;
     } & TextColor
 ): DrawdyElementSchema {
     const drawdyElementId = newId();
@@ -48,7 +66,7 @@ export function textLine(
         fontSize: opts.fontSize,
         color: opts.ink ? ink(opts.ink) : opts.color!,
         textAlign: opts.textAlign,
-        meta: tag(opts.stage, opts.role),
+        meta: tag(opts.stage, opts.role, opts.anchor),
     };
 }
 
@@ -78,6 +96,7 @@ export function xpWindow(opts: {
     width: number;
     height: number;
     title: string;
+    anchor?: StageAnchor;
 }): Built {
     const titleBarHeight = 46;
     const body: DrawdyElementSchema = {
@@ -94,7 +113,7 @@ export function xpWindow(opts: {
         cornerRadius: 10,
         roughness: 0,
         fillStyle: "solid",
-        meta: tag(opts.stage, `${opts.role}:body`),
+        meta: tag(opts.stage, `${opts.role}:body`, opts.anchor),
     };
     const titleBar: DrawdyElementSchema = {
         type: "shape",

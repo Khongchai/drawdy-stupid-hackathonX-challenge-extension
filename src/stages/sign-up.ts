@@ -31,6 +31,7 @@ export class SignUpStage implements Stage {
             width: width - 400,
             height: height - 240,
             title: `${challengeTitle(this.id)} - Sign up`,
+            anchor: this.env.anchor,
         });
         const instruction = textLine({
             stage: this.id,

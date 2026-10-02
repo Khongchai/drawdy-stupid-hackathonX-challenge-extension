@@ -1,6 +1,6 @@
 import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
 import { Point, Rect } from "./geometry";
-import { StageId } from "./scene-kit";
+import { StageAnchor, StageId } from "./scene-kit";
 import { ToastTone } from "./scene";
 import { TantrumKind } from "./tantrum-script";
 
@@ -15,6 +15,8 @@ export type Completion = {
 export type StageEnv = {
     region: Rect;
     error: string | null;
+    seed: number;
+    anchor: StageAnchor;
     isCurrent(): boolean;
     complete(result: Completion): void;
     advance(): void;

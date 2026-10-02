@@ -17,7 +17,7 @@ import {
     wallPoseAt,
 } from "../maze";
 import { PreviewFrame, beginPreview, endPreview, startPreviewLoop } from "../preview-loop";
-import { seededRandom } from "../random";
+import { Random, seededRandom } from "../random";
 import { addElements, updateElements } from "../scene";
 import { tag, textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
@@ -66,9 +66,11 @@ export class MazeStage implements Stage {
     private stretchStartedAt: number | null = null;
     private batches: WallBatch[] = [];
     private lastCorridorRedraw = 0;
-    private random = seededRandom(Date.now());
+    private random: Random;
 
-    constructor(private readonly env: StageEnv) {}
+    constructor(private readonly env: StageEnv) {
+        this.random = seededRandom(env.seed);
+    }
 
     async build(): Promise<void> {
         const { x, y } = this.env.region;
@@ -79,6 +81,7 @@ export class MazeStage implements Stage {
         const title = textLine({
             stage: this.id,
             role: "title",
+            anchor: this.env.anchor,
             x: x + 40,
             y: y + 30,
             text: `${challengeTitle(this.id)}: อย่าชนขอบ`,

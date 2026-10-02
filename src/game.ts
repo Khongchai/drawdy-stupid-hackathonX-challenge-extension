@@ -8,15 +8,18 @@ import {
     findEmptyRegion,
     flyTo,
     removeElements,
-    removeTaggedElements,
+    beginReconcile,
+    endReconcile,
+    scanTaggedElements,
     roleOf,
     toast,
 } from "./scene";
-import { StageId, roundButton, textBlock } from "./scene-kit";
+import { StageAnchor, StageId, roundButton, textBlock } from "./scene-kit";
 import { Completion, Stage, StageEnv } from "./stage";
 import { createStage, regionSizeFor } from "./stages";
 import { ORDER } from "./challenges";
 import { Tantrum } from "./tantrum";
+import { useIdSeed } from "./host";
 import { PANEL_INK } from "./theme";
 
 const FADE_OUT_MS = 800;
@@ -46,9 +49,14 @@ export class Game {
     boot(): void {
         this.run(async () => {
             this.transitioning = true;
-            const found = await removeTaggedElements();
-            const resumeAt = ORDER.filter((id) => found.has(id)).pop() ?? "intro";
-            await this.enter(resumeAt, null);
+            const scan = await scanTaggedElements();
+            const anchored = ORDER.map((id) => scan.anchors.find((a) => a.stage === id)).filter((a) => a !== undefined).pop();
+            if (anchored) {
+                await this.enter(anchored.stage, anchored.anchor.error, { anchor: anchored.anchor, existing: scan.ids });
+            } else {
+                await removeElements(scan.ids);
+                await this.enter(ORDER.filter((id) => scan.stages.has(id)).pop() ?? "intro", null);
+            }
             this.transitioning = false;
         });
     }
@@ -101,10 +109,12 @@ export class Game {
         });
     }
 
-    private envFor(region: Rect, error: string | null, generation: number): StageEnv {
+    private envFor(anchor: StageAnchor, generation: number): StageEnv {
         return {
-            region,
-            error,
+            region: anchor.region,
+            error: anchor.error,
+            seed: anchor.seed,
+            anchor,
             isCurrent: () => generation === this.generation && !this.transitioning,
             complete: (result) => {
                 if (generation === this.generation) this.run(() => this.showCompletion(generation, result));
@@ -122,16 +132,34 @@ export class Game {
         };
     }
 
-    private async enter(id: StageId, error: string | null): Promise<void> {
-        const region = await findEmptyRegion(regionSizeFor(id));
+    private async enter(
+        id: StageId,
+        error: string | null,
+        resume?: { anchor: StageAnchor; existing: readonly string[] }
+    ): Promise<void> {
+        const anchor: StageAnchor = resume?.anchor ?? {
+            seed: Math.floor(Math.random() * 2 ** 31),
+            region: await findEmptyRegion(regionSizeFor(id)),
+            error,
+        };
         this.generation++;
-        this.region = region;
+        this.region = anchor.region;
         this.completed = null;
         this.tantrum.reset();
-        const stage = createStage(id, this.envFor(region, error, this.generation));
+        const stage = createStage(id, this.envFor(anchor, this.generation));
         this.stage = stage;
-        await flyTo(region);
-        await stage.build();
+        await flyTo(anchor.region);
+        useIdSeed(anchor.seed);
+        if (resume) beginReconcile(resume.existing);
+        try {
+            await stage.build();
+        } finally {
+            useIdSeed(null);
+        }
+        if (resume) {
+            const kept = endReconcile();
+            await removeElements(resume.existing.filter((existingId) => !kept.has(existingId)));
+        }
     }
 
     private async showCompletion(generation: number, result: Completion): Promise<void> {

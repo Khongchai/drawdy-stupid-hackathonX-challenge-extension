@@ -1,10 +1,10 @@
 import type { DriverSubscriptionEvent } from "@drawdy/driver-protocol";
 import { challengeTitle } from "../challenges";
 import { DecoyKind, decoyGrid, generateDecoys } from "../decoys";
-import { newId } from "../host";
+import { newId, trySend } from "../host";
 import { currentTheme } from "../ink";
 import { seededRandom } from "../random";
-import { addElements, countElements, elementRects, flyTo } from "../scene";
+import { addElements, countElements, elementRects, flyTo, reconcilingCount } from "../scene";
 import { rectCenter } from "../geometry";
 import { textLine } from "../scene-kit";
 import { Stage, StageEnv } from "../stage";
@@ -45,19 +45,20 @@ export class FindRectStage implements Stage {
         const title = textLine({
             stage: this.id,
             role: "title",
+            anchor: this.env.anchor,
             x: x + FIELD_PADDING,
             y: y + 140,
             text: `${challengeTitle(this.id)}: Find the rectangle and click it.`,
             fontSize: Math.round(46 * (width / FOCUS_SIZE.width)),
             ink: "title",
         });
-        const room = BOARD_ELEMENT_LIMIT - RESERVED_ELEMENTS - (await countElements());
+        const room = BOARD_ELEMENT_LIMIT - RESERVED_ELEMENTS - ((await countElements()) - reconcilingCount());
         const count = Math.max(0, Math.min(DECOY_COUNT, room));
         const decoys = generateDecoys(
             count,
             { x: x + FIELD_PADDING, y: y + TITLE_BAND },
             GRID,
-            seededRandom(Date.now()),
+            seededRandom(this.env.seed),
             this.id,
             newId,
             DECOY_COLORS[currentTheme()]
@@ -77,9 +78,20 @@ export class FindRectStage implements Stage {
         } else {
             this.env.toast("Find the rectangle.", "info");
         }
+        await this.adoptRectanglesAlreadyDrawn();
         this.hintTimer = setTimeout(() => {
             if (!this.solved && this.env.isCurrent()) this.env.toast("Hint: you can draw one.", "info", 6000);
         }, HINT_AFTER_MS);
+    }
+
+    private async adoptRectanglesAlreadyDrawn(): Promise<void> {
+        const found = await trySend({
+            type: "command:scene:query-rect",
+            req: { rect: this.env.region, properties: ["componentType"] },
+        });
+        for (const e of found?.drawdyElements ?? []) {
+            if (!this.owned.has(e.id) && e.componentType === "rect") this.drawnRects.add(e.id);
+        }
     }
 
     requiredIds(): Iterable<string> {

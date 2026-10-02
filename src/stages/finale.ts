@@ -78,7 +78,7 @@ export class FinaleStage implements Stage {
 
     async build(): Promise<void> {
         const { x, y, width, height } = this.env.region;
-        const random = seededRandom(Date.now());
+        const random = seededRandom(this.env.seed);
         const colors = DECOY_COLORS[currentTheme()];
         const confetti: DrawdyElementSchema[] = Array.from({ length: CONFETTI_COUNT }, () => {
             const size = between(random, 12, 34);
@@ -101,6 +101,7 @@ export class FinaleStage implements Stage {
         const title = textLine({
             stage: this.id,
             role: "title",
+            anchor: this.env.anchor,
             x: x + 120,
             y: y + 190,
             text: "You beat Drawdy's\nStupid Hackathon Challenge!",

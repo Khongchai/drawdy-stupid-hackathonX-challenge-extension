@@ -38,6 +38,7 @@ export class ButtonsStage implements Stage {
             width: width - 80,
             height: height - 40,
             title: challengeTitle(this.id),
+            anchor: this.env.anchor,
         });
         const instructions = textLine({
             stage: this.id,

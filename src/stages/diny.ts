@@ -60,6 +60,7 @@ export class DinyStage implements Stage {
         const title = textLine({
             stage: this.id,
             role: "title",
+            anchor: this.env.anchor,
             x: x + 40,
             y: y + 40,
             text: `${challengeTitle(this.id)}: Click Diny.`,

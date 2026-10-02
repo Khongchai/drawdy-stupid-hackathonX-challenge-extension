@@ -5,6 +5,7 @@ import type {
     DriverCommandResponseFor,
     ModuleStyling,
 } from "@drawdy/driver-protocol";
+import { Random, seededRandom } from "./random";
 
 export type UnstampedRequest = DistributiveOmit<DriverCommandRequest, "driverId" | "requestId">;
 
@@ -36,6 +37,14 @@ export type Host = {
 
 let host: Host | null = null;
 let requestSeq = 0;
+let idRandom: Random | null = null;
+
+const ID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const ID_LENGTH = 12;
+
+export function useIdSeed(seed: number | null): void {
+    idRandom = seed === null ? null : seededRandom(seed);
+}
 
 export function bindHost(next: Host): void {
     host = next;
@@ -47,7 +56,10 @@ export function currentHost(): Host {
 }
 
 export function newId(): string {
-    return currentHost().generateId();
+    if (!idRandom) return currentHost().generateId();
+    let id = "";
+    for (let i = 0; i < ID_LENGTH; i++) id += ID_CHARS[Math.floor(idRandom() * ID_CHARS.length)];
+    return id;
 }
 
 export async function send<C extends UnstampedRequest>(command: C): Promise<CommandValue<C>> {

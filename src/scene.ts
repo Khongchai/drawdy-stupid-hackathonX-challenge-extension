@@ -8,7 +8,7 @@ import { Rect, expandRect, rectCenter, rectsIntersect, unionRect } from "./geome
 import { send, trySend } from "./host";
 import { forgetInk, inkUpdates, setTheme } from "./ink";
 import { BUTTON, Theme } from "./theme";
-import { StageId, readTag } from "./scene-kit";
+import { StageAnchor, StageId, readTag } from "./scene-kit";
 import { XP } from "./theme";
 
 const ADD_BATCH = 500;
@@ -18,6 +18,21 @@ const SEARCH_RINGS = 14;
 const TOAST_DOM_ID = "shx-toast";
 
 const roleById = new Map<string, string>();
+let reconcile: { existing: Set<string>; seen: Set<string> } | null = null;
+
+export function beginReconcile(existing: Iterable<string>): void {
+    reconcile = { existing: new Set(existing), seen: new Set() };
+}
+
+export function endReconcile(): Set<string> {
+    const seen = reconcile?.seen ?? new Set<string>();
+    reconcile = null;
+    return seen;
+}
+
+export function reconcilingCount(): number {
+    return reconcile?.existing.size ?? 0;
+}
 const removedByDriver = new Set<string>();
 
 export function roleOf(id: string): string | undefined {
@@ -35,13 +50,15 @@ export async function addElements(
     for (const element of elements) {
         const role = readTag(element.meta)?.role;
         if (role) roleById.set(element.drawdyElementId, role);
+        reconcile?.seen.add(element.drawdyElementId);
     }
-    for (let i = 0; i < elements.length; i += ADD_BATCH) {
+    const missing = reconcile ? elements.filter((e) => !reconcile!.existing.has(e.drawdyElementId)) : elements;
+    for (let i = 0; i < missing.length; i += ADD_BATCH) {
         await send({
             type: "command:scene:add-drawdy-elements",
-            req: { elements: elements.slice(i, i + ADD_BATCH) },
+            req: { elements: missing.slice(i, i + ADD_BATCH) },
         });
-        onProgress?.(Math.min(i + ADD_BATCH, elements.length));
+        onProgress?.(Math.min(i + ADD_BATCH, missing.length));
     }
 }
 
@@ -140,21 +157,26 @@ export async function existingIds(ids: readonly string[]): Promise<Set<string>> 
     return new Set(value.drawdyElements.map((e) => e.id));
 }
 
-export async function removeTaggedElements(): Promise<Set<StageId>> {
+export type TaggedScan = {
+    ids: string[];
+    stages: Set<StageId>;
+    anchors: { stage: StageId; anchor: StageAnchor }[];
+};
+
+export async function scanTaggedElements(): Promise<TaggedScan> {
     const value = await send({
         type: "command:scene:get-drawdy-elements",
         req: { properties: ["meta"] },
     });
-    const stages = new Set<StageId>();
-    const ids: string[] = [];
+    const scan: TaggedScan = { ids: [], stages: new Set(), anchors: [] };
     for (const element of value.drawdyElements) {
         const found = readTag(element.meta as Record<string, unknown> | undefined);
         if (!found) continue;
-        stages.add(found.stage);
-        ids.push(element.id);
+        scan.stages.add(found.stage);
+        scan.ids.push(element.id);
+        if (found.anchor) scan.anchors.push({ stage: found.stage, anchor: found.anchor });
     }
-    await removeElements(ids);
-    return stages;
+    return scan;
 }
 
 export async function countElements(): Promise<number> {
