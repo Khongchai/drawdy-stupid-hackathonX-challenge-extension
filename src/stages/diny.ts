@@ -16,13 +16,11 @@ const DINY_HEIGHT = 161;
 const DINY_CLOSED_URL = "https://cdn.drawdy.io/stupid-hackathonx/diny-mouth-close.png";
 const DINY_OPEN_URL = "https://cdn.drawdy.io/stupid-hackathonx/diny-mouth-open.png";
 const PARKED_OFFSET = 1_000_000;
-const GIVE_UP_MS = 30_000;
 const FLEE_SCREEN_PX = 240;
 const FLEE_TAU_S = 0.045;
 const WANDER_TAU_S = 0.9;
 const FLEE_HOLD_MS = 450;
 const MISS_COOLDOWN_MS = 4000;
-const HEARTBREAK = "อกไก่ยังมีคนหมัก แต่อกหักต้องปล่อยเขาไปนะพี่นะ";
 
 export class DinyStage implements Stage {
     readonly id = "diny" as const;
@@ -39,9 +37,8 @@ export class DinyStage implements Stage {
     private lastFrameAt = 0;
     private nextWanderAt = 0;
     private random = seededRandom(Date.now());
-    private outcome: "running" | "caught" | "released" = "running";
+    private outcome: "running" | "caught" = "running";
     private stopLoop: (() => void) | null = null;
-    private giveUpTimer: ReturnType<typeof setTimeout> | null = null;
     private subscriptions: (string | null)[] = [];
     private previewing = false;
     private lastMissAt = 0;
@@ -118,7 +115,6 @@ export class DinyStage implements Stage {
         if (!this.previewing) this.env.toast("Diny can't move. Sorry.", "bad");
         this.lastFrameAt = performance.now();
         this.stopLoop = startPreviewLoop((now) => this.frame(now));
-        this.giveUpTimer = setTimeout(() => this.release(), GIVE_UP_MS);
         this.env.toast("Click Diny.");
     }
 
@@ -169,7 +165,7 @@ export class DinyStage implements Stage {
         if (!threatened) return;
         this.target = chooseEscape(this.position, cursor, this.roam, radius, this.random);
         const now = Date.now();
-        if (this.outcome === "running" && now - this.lastMissAt > MISS_COOLDOWN_MS) {
+        if (now - this.lastMissAt > MISS_COOLDOWN_MS) {
             this.lastMissAt = now;
             this.env.tantrum("diny-miss", cursor);
         }
@@ -200,38 +196,15 @@ export class DinyStage implements Stage {
 
     private catch(): void {
         if (this.outcome === "caught") return;
-        const wasReleased = this.outcome === "released";
         this.outcome = "caught";
         this.target = { ...this.position };
-        if (this.giveUpTimer) clearTimeout(this.giveUpTimer);
         this.env.toast("You caught Diny.", "good", 5000);
-        if (!wasReleased) this.env.complete({ lines: ["You caught Diny."] });
-    }
-
-    private release(): void {
-        if (this.outcome !== "running" || !this.env.isCurrent()) return;
-        this.outcome = "released";
-        const { x, y, height } = this.env.region;
-        const line = textLine({
-            stage: this.id,
-            role: "heartbreak",
-            x: x + 80,
-            y: y + height - 300,
-            text: HEARTBREAK,
-            fontSize: 44,
-            ink: "danger",
-        });
-        this.owned.push(line.drawdyElementId);
-        void addElements([line]).then(() => {
-            this.env.toast(HEARTBREAK, "info", 8000);
-            this.env.complete({ lines: ["You didn't catch Diny. Let her go."] });
-        });
+        this.env.complete({ lines: ["You caught Diny."] });
     }
 
     async dispose(): Promise<void> {
         this.stopLoop?.();
         this.stopLoop = null;
-        if (this.giveUpTimer) clearTimeout(this.giveUpTimer);
         for (const id of this.subscriptions) await unsubscribe(id);
         this.subscriptions = [];
         if (this.previewing) await endPreview();
